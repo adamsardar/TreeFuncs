@@ -1,3 +1,5 @@
 A variety of scripts useful for handling trees. Makes extensive use of the perl-libs-custom perl modules available from github.com/adamsardar.
 
 Scripts include means by which to root a tree and perform ancestral state reconstruction/analysis.
+
+Makes extensive use of BioPerl, although future versions may remove this dependency (both for reliability and speed)
