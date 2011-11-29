@@ -1,5 +1,4 @@
-#! /usr/bin/perl -w
-
+#! /usr/bin/env perl
 =head1 NAME
 
 PlylipAncestralStates<.pl>
@@ -36,8 +35,7 @@ use warnings;
 
 # Add Local Library to LibPath
 #----------------------------------------------------------------------------------------------------------------
-use lib "/home/sardar/workspace/Oates/lib/";
-
+use lib "$ENV{HOME}/bin/perl-libs-custom/";
 
 # CPAN Includes
 #----------------------------------------------------------------------------------------------------------------

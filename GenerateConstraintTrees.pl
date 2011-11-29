@@ -1,16 +1,19 @@
-#! /usr/bin/perl -w
+#! /usr/bin/env perl
 
 =head1 NAME
 
-I<.pl>
+GenerateConstraintTreesI<.pl>
 
 =head1 USAGE
 
- .pl [options -v,-d,-h] <ARGS>
+GenerateConstraintTrees.pl [options -v,-d,-h] <ARGS>
 
 =head1 SYNOPSIS
 
-A script to take a list of genomes (strains or whatever) and output some summary data regarding the domain architectures in common.
+A script to take generate constraint trees for use in RAxML. Given a tree file in newick, this will loop through and produce a tree
+with one node missing, for each node in the input tree.
+
+Work in progress
 
 =head1 AUTHOR
 
@@ -30,8 +33,7 @@ use warnings;
 
 # Add Local Library to LibPath
 #----------------------------------------------------------------------------------------------------------------
-use lib "/home/sardar/bin/perl-libs-custom";
-
+use lib "$ENV{HOME}/bin/perl-libs-custom/";
 
 # CPAN Includes
 #----------------------------------------------------------------------------------------------------------------
@@ -72,25 +74,9 @@ GetOptions("verbose|v!"  => \$verbose,
 #Print out some help if it was asked for or if no arguments were given.
 pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
-# Sub definitions
-#----------------------------------------------------------------------------------------------------------------
-=head1 DESCRIPTION
-
-Detailed info about the script goes here
-
-=head2 Methods
-=over 4
-=cut
-
-=item * func
-Function to do something
-=cut
 
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
-
-
-
 
 
 my $out = Bio::TreeIO->new(-format => 'newick',

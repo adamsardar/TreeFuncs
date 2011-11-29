@@ -1,4 +1,4 @@
-#! /usr/bin/perl -w
+#! /usr/bin/env perl
 
 =head1 NAME
 
@@ -40,8 +40,7 @@ use warnings;
 
 # Add Local Library to LibPath
 #----------------------------------------------------------------------------------------------------------------
-use lib "/home/sardar/bin/perl-libs-custom/";
-
+use lib "$ENV{HOME}/bin/perl-libs-custom/";
 
 # CPAN Includes
 #----------------------------------------------------------------------------------------------------------------
