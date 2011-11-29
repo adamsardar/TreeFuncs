@@ -8,7 +8,7 @@ RootTree<.pl>
 
 Example: RootTree.pl -ld <SF life domain> -o <output.nwk> -t <input tree file (can be a list of trees, script will work sequenctially on all of them)> -og <comma seperated (no spaces) sting of nodes to use as ougroup>
 
- RootTree.pl -t hs.newick -o RootedTree -og hs,gx
+RootTree.pl -t hs.newick -o RootedTree -og hs,gx
 
 RootTree.pl [options -v,-d,-h] <ARGS>
 
@@ -50,7 +50,6 @@ B<Data::Dumper> Used for debug output.
 use Getopt::Long;                     #Deal with command line options
 use Pod::Usage;                       #Print a usage man page from the POD comments after __END__
 use Data::Dumper;                     #Allow easy print dumps of datastructures for debugging
-#use XML::Simple qw(:strict);          #Load a config file from the local directory
 use DBI;
 
 use Bio::TreeIO;
@@ -70,14 +69,12 @@ my $help;    #Same again but this time should we output the POD man page defined
 my $TreeFile;
 my $RootingLifeDomain;
 my $outputfile;
-my @CLIOutgroupGenomes;
+my $CLIOutgroupGenomes;
 my $OutgroupGenomeFile;
 my $include = 'y';
 
-
 #Main Script
 #----------------------------------------------------------------------------------------------------------------
-
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -86,12 +83,11 @@ GetOptions("verbose|v!"  => \$verbose,
            "tree|t:s" => \$TreeFile,
            "outgrouplifedomain|ld:s" => \$RootingLifeDomain,
            "output|o:s" => \$outputfile,
-           "outgroup|og:s" => \@CLIOutgroupGenomes,
+           "outgroup|og:s" => \$CLIOutgroupGenomes,
            "include|inc:s" => \$include,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
-#Get a collection of nodeIDs by which to root tree
-
+#Get a collection of nodeIDs by which to root tree#use XML::Simple qw(:strict);          #Load a config file from the local directory
 
 
 $outputfile = "$TreeFile.Extract" unless(defined($outputfile));
@@ -114,7 +110,10 @@ if($RootingLifeDomain){
 
 }
 
-push(@$OutgroupNodes,@CLIOutgroupGenomes) if(@CLIOutgroupGenomes);
+if($CLIOutgroupGenomes){
+	my @CLIGenomes = split(',',$CLIOutgroupGenomes);
+	push(@$OutgroupNodes,@CLIGenomes) ;
+}
 
 if($OutgroupGenomeFile){
 	
@@ -157,10 +156,15 @@ while (my $UnrootedTree = <TREEFILE>){
 
 	#Convert the outgroup node names into ids
 	my $OutgroupNodeIDs = [];
-	map{my $NODENAME = $_->id; push(@$OutgroupNodeIDs,$_) if grep{m/^$NODENAME$/}@$OutgroupNodes; }@TreeLeafNodeIDs;
+	
+	my $TreeLeafNodeIDDictionary = {};
+	map{$TreeLeafNodeIDDictionary->{$_->id} = $_}@TreeLeafNodeIDs;
+	my ($Union,$IntersectionOutgroupTreeLeaves,$Outgroup,$TreeExclusive) = IntUnDiff($OutgroupNodes,[keys(%$TreeLeafNodeIDDictionary)]);
+	
+	map{my $OutgroupNodeID =  $TreeLeafNodeIDDictionary->{$_}; push(@$OutgroupNodeIDs,$OutgroupNodeID);}@$IntersectionOutgroupTreeLeaves;
 
 	die "Outgroup not in tree!" unless(scalar(@$OutgroupNodeIDs));
-	
+
 	FindTrueRoot($tree,$OutgroupNodeIDs); #Operates on $tree and roots it
 
 	$out->write_tree($tree);
