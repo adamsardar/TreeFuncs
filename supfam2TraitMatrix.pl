@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-supfam2Phylip<.pl>
+supfam2TraitMatrix<.pl>
 
 =head1 USAGE
 
@@ -11,7 +11,7 @@ supfam2Phylip<.pl>
 =head1 SYNOPSIS
 
 A script to generate a carachter trait matrix file of domain architecture combinations copatible with Phylip|RAxML|Hennig86 format from a specified tree file 
-(or list of trees with the same leaves - Phylip). This works purely with domaind combinations, not supradomains (yet!).
+(or list of trees with the same leaves - Phylip). This works purely with domain architectures, not supradomains (yet!).
 
 =head1 AUTHOR
 
@@ -146,7 +146,7 @@ sub RAxMLOutput($$){
 	
 	foreach my $Taxon (@TreeTaxa){
 	
-		print OUT $Taxon."      "; #Phylip sucks SO much that the minimu taxon name length is five carachters. URGH!
+		print OUT $Taxon."      "; #Phylip format is very specific about the whitespace that it can use for input
 		my $TraitString = $TraitHash->{$Taxon};
 		print OUT $TraitString;
 		print OUT "\n";
@@ -231,18 +231,10 @@ $sth->execute();
 my @comb_ids;
 
 
-#unless(-e './.Combs' && $cachecombs){ #Script allows for caching the comb list - or indeed feeding in a strangely tailored combs list
-	while (my $CombID = $sth->fetchrow_array() ) {
+while (my $CombID = $sth->fetchrow_array() ) {
 	
-		push(@comb_ids,$CombID);
-	}
-	#EasyDump('.Combs',\@comb_ids);
-#}else{
-	
-#	my $combspoint = EasyUnDump('.Combs');
-	#@comb_ids = @{$combspoint};
-#}
-
+	push(@comb_ids,$CombID);
+}
 
 
 my %CombHash;
