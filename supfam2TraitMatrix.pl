@@ -48,9 +48,8 @@ use Pod::Usage;                       #Print a usage man page from the POD comme
 use Data::Dumper;                     #Allow easy print dumps of datastructures for debugging
 #use XML::Simple qw(:strict);          #Load a config file from the local directory
 use DBI;
+
 use Supfam::SQLFunc;
-use Bio::TreeIO;
-use IO::String;
 use Supfam::Utils;
 use Supfam::TreeFuncsNonBP;
 
@@ -61,12 +60,14 @@ my $verbose; #Flag for verbose output from command line opts
 my $debug;   #As above for debug
 my $help;    #Same again but this time should we output the POD man page defined after __END__
 my $TreeFile;
+my $GenomeListFile;
 my $genome_archs_file;
 my $outputfile;
 my $OutputStyle = 'RAxML';
 my $TraitStyle = 'comb';
 
 # Sub definitions
+
 #----------------------------------------------------------------------------------------------------------------
 
 sub Hennig86Output($$){
@@ -159,7 +160,9 @@ sub RAxMLOutput($$){
 sub generateDomArchTraits($){
 	
 	my (@TreeTaxa);
-	(\@TreeTaxa) = @_;
+	@TreeTaxa = @{$_[0]};
+	
+	my $NoTreeTaxa = scalar(@TreeTaxa);
 	
 	#Create a hash of all the trait vectors per taxon
 	my $TraitHash = {};
@@ -233,7 +236,9 @@ sub generateDomArchTraits($){
 sub generateSupraTraits($){
 	
 	my (@TreeTaxa);
-	(\@TreeTaxa) = @_;
+	@TreeTaxa = @{$_[0]};
+	
+	my $NoTreeTaxa = scalar(@TreeTaxa);
 	
 	#Create a hash of all the trait vectors per taxon
 	my $TraitHash = {};
@@ -309,7 +314,9 @@ sub generateMultistateTraits($){
 	#Multistate refers to a system which, rather than simply treating traits as present or ansent, gives several levels. 0 = absent, 1 = present as a supradomain and 2 = present as a domain architecture
 	
 	my (@TreeTaxa);
-	(\@TreeTaxa) = @_;
+	@TreeTaxa = @{$_[0]};
+	
+	my $NoTreeTaxa = scalar(@TreeTaxa);
 	
 	#Create a hash of all the trait vectors per taxon
 	my $TraitHash = {};
@@ -373,8 +380,8 @@ sub generateMultistateTraits($){
 	
 	foreach my $supra_id (sort(@supra_ids)){
 		{
-			no warnings 'uninitialized'; #Stop perl complaining about unitialized hash entries
-			push (@InformativeSites,$index) if($CombHash{$supra_id} != $NoTreeTaxa && $SupraHash{$supra_id} != $NoTreeTaxa  && $CombHash{$comb_id} != 0);
+	#		no warnings 'uninitialized'; #Stop perl complaining about unitialized hash entries
+			push (@InformativeSites,$index) if(($CombHash{$supra_id} != $NoTreeTaxa) && ($SupraHash{$supra_id} != $NoTreeTaxa)  && ($CombHash{$supra_id} != 0));
 			#i.e all or none of the taxa possess a comb or a supradomain, then exclude it from the trait hash
 		}
 		$index++;
@@ -392,37 +399,66 @@ sub generateMultistateTraits($){
 		
 }
 
-
 #Main Script
 #----------------------------------------------------------------------------------------------------------------
 
 
-#Set command line flags and parameters.n
+#Set command line flags and parameters
+
 GetOptions("verbose|v!"  => \$verbose,
            "debug|d!"  => \$debug,
            "help|h!" => \$help,
            "tree|t=s" => \$TreeFile,
+           "genomelist|g=s" => \$GenomeListFile,
            "output|o=s" => \$outputfile,
            "style|s:s" => \$OutputStyle,
            "traitstyle|T=s" => \$TraitStyle,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
+my $NewickTrees = [];
+my @TreeTaxa;
 
-open FH, "<$TreeFile" or die $?;
+if($TreeFile){
+	
+	#Take as input a tree file. Extract the leaf names and push the newick strings onto $NewickTrees
+	
+	open FH, "<$TreeFile" or die $?;
+	
+	my $NewickStringOfTree = <FH>;
+	
+	my ($root,$TreeCacheHash) = BuildTreeCacheHash($NewickStringOfTree);
+	print "Built TreeCacheHash\n";
+	
+	my @RootDescendents = @{$TreeCacheHash->{$root}{'all_Descendents'}};
+	@TreeTaxa = map{$TreeCacheHash->{$_}{'node_id'}}@{$TreeCacheHash->{$root}{'Clade_Leaves'}};
+	
+	
+	push(@$NewickTrees,$NewickStringOfTree);
+	
+	#TODO Check that all trees in input file agree on taxa
+	#TODO Push all input trees onto an array for passing into Phylip output
+	#TODO Rename leaf names in taxa for Phylip and push onto an array for output in the phylip file
+	#TODO Add in error check for supfam codes
+	
+	close FH;
+	
+}elsif($GenomeListFile){
+	
+	open FH, "<$GenomeListFile" or die $?;
+	
+	while (my $Genome = <FH>){
+		
+		chomp($Genome);
+		push(@TreeTaxa,$Genome)
+	}
+	
+	close FH;
+	
+}else{
+	
+	die "You need to specify a tree or list of genomes to study\n";
+}
 
-my $NewickStringOfTree = <FH>;
-
-my ($root,$TreeCacheHash) = BuildTreeCacheHash($NewickStringOfTree);
-print "Built TreeCacheHash\n";
-
-my @RootDescendents = @{$TreeCacheHash->{$root}{'all_Descendents'}};
-my @TreeTaxa = @{$TreeCacheHash->{$root}{'Clade_Leaves'}};
-
-#TODO Check that all trees in input file agree on taxa
-#TODO Push all input trees onto an array for passing into Phylip output
-#TODO Rename leaf names in taxa for Phylip and push
-
-close FH;
 
 #Generate the appropriate set of traits
 
@@ -455,6 +491,7 @@ if($OutputStyle =~ m/Hennig86/i){
 	
 }elsif($OutputStyle =~ m/Phylip/i){
 	
+	die "You must provide a tree input file if you want a Phylip output" unless(scalar(@$NewickTrees));
 	PhylipOutput($TraitHash,$outputfile,$NewickTrees);
 	
 }elsif($OutputStyle =~ m/RAxML/i){
@@ -463,7 +500,7 @@ if($OutputStyle =~ m/Hennig86/i){
 	
 }else{
 	
-	RAxMLOutput($TraitHash,$outputfile,$NewickTrees);
+	RAxMLOutput($TraitHash,$outputfile);
 	print STDERR 'No Appropriate Output chosen, outputted RAxML format instead';
 }
 

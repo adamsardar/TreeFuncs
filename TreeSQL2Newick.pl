@@ -56,6 +56,7 @@ my $rootright; #Root node from the tree (right id in SQL table) to be used.
 my $deletiontreeflag; #Produce a tree with branch lengths equal to the number of domain architecture deltions along that edge
 my @excluded; # A list of genomes not wanted in this tree - not yet implemented
 my $OutputFile = 'fileout.dat';
+my $ExcludeGenomeFile = 0;
 
 my $ExcludeLifeDomain;
 my @CLIExlucdeGenomes;
@@ -113,7 +114,7 @@ if($ExcludeGenomeFile){
 
 my ($RightTreeHash,$LeftTreeHash) = SQL2Newick($rootleft,$rootright);
 
-open OUTPUT, "> " or die $!;
+open OUTPUT, "> SupfamTree" or die $!;
 my $FullTree = $LeftTreeHash->{$rootleft}[1][2];
 
 print OUTPUT $FullTree."\n";
