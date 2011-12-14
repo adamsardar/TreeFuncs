@@ -6,7 +6,7 @@ supfam2TraitMatrix<.pl>
 
 =head1 USAGE
 
-  supfam2TraitMatrix.pl [options -v,-d,-h] -t --tree <TreeFile in Newick> -o --output <outputfile name> -s --style <output style phylip|Hennig86|RAxML> -T -- traitstyle supra|comb|multi
+  supfam2TraitMatrix.pl [options -v,-d,-h] -t --tree <TreeFile in Newick> -o --output <outputfile name> -s --style <output style phylip|Hennig86|RAxML> (-T -- traitstyle supra|comb|multi  | -s --genomelist new line seperated lsit of genomes to produce traits for )
 
 =head1 SYNOPSIS
 
@@ -62,7 +62,7 @@ my $help;    #Same again but this time should we output the POD man page defined
 my $TreeFile;
 my $GenomeListFile;
 my $genome_archs_file;
-my $outputfile;
+my $outputfile = 'output';
 my $OutputStyle = 'RAxML';
 my $TraitStyle = 'comb';
 
@@ -142,7 +142,7 @@ sub RAxMLOutput($$){
 	my $NoTreeTaxa = scalar(@TreeTaxa); 
 	my $LineLength = length($TraitHash->{$TreeTaxa[0]});
 	
-	open OUT, ">$outputfile";
+	open OUT, ">$outputfile" or die $?;
 		
 	print OUT "$NoTreeTaxa\t$LineLength\n";
 	
@@ -431,16 +431,32 @@ if($TreeFile){
 	
 	my @RootDescendents = @{$TreeCacheHash->{$root}{'all_Descendents'}};
 	@TreeTaxa = map{$TreeCacheHash->{$_}{'node_id'}}@{$TreeCacheHash->{$root}{'Clade_Leaves'}};
-	
-	
+		
 	push(@$NewickTrees,$NewickStringOfTree);
 	
-	#TODO Check that all trees in input file agree on taxa
-	#TODO Push all input trees onto an array for passing into Phylip output
-	#TODO Rename leaf names in taxa for Phylip and push onto an array for output in the phylip file
-	#TODO Add in error check for supfam codes
+	
+	while(my $OtherTree = <FH>){
+		
+		next if($OtherTree =~ m/^\s*$/);
+		
+		chomp($OtherTree);
+		push(@$NewickTrees,$OtherTree);
+		
+		my ($Altroot,$AltTreeCacheHash) = BuildTreeCacheHash($NewickStringOfTree);
+		my @AltTreeTaxa = map{$AltTreeCacheHash->{$_}{'node_id'}}@{$AltTreeCacheHash->{$Altroot}{'Clade_Leaves'}};
+		
+		my (undef,undef,$ListAExclusive,$ListBExclusive) = IntUnDiff(\@TreeTaxa,\@AltTreeTaxa);
+		die "Input tree taxa don't agree with one another\n" if(scalar(@$ListAExclusive) || scalar(@$ListBExclusive));
+		#Error check the input trees
+		
+		undef($Altroot);
+		undef($AltTreeCacheHash); #Hopeful lower the memory footprint
+	}
 	
 	close FH;
+	
+	#TODO Rename leaf names in taxa for Phylip and push onto an array for output in the phylip file. currently the script just warns
+	print STDERR "Phylip has a minimum taxon size\n" if(grep{length($_)< 3}@TreeTaxa  && $TraitStyle =~ m/phylip/i);	
 	
 }elsif($GenomeListFile){
 	
@@ -458,6 +474,22 @@ if($TreeFile){
 	
 	die "You need to specify a tree or list of genomes to study\n";
 }
+
+
+#error check for supfam codes
+
+my $dbh = dbConnect();
+
+my $sth = $dbh->prepare_cached("SELECT genome FROM genome WHERE genome = ?;");
+
+foreach my $Taxa (@TreeTaxa){
+	
+	$sth->execute($Taxa);
+	die "No entry in genome table of SUPEERFAMILY for $Taxa\n" unless($sth->rows());
+	$sth->finish;
+}
+
+dbDisconnect($dbh) ; 
 
 
 #Generate the appropriate set of traits
