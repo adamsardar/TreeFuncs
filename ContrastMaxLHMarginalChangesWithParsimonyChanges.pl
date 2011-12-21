@@ -2,14 +2,15 @@
 
 =head1 NAME
 
-ContrastMaxLHWithParsimony<.pl>
+ContrastMaxLHMarginalChangesWithParsimonyChanges<.pl>
 
 =head1 USAGE
 
-ContrastMaxLHWithParsimony.pl [options -v,-d,-h] <ARGS>
+
+ContrastMaxLHMarginalChangesWithParsimonyChanges.pl [options -v,-d,-h] <ARGS>
 
 example:
-ContrastMaxLHWithParsimony.pl -f ./RAxML_marginalAncestralStates.BacteriaAncestral -st ./BacteriaTraits -o Contrasted -t ./BacteraSupraDomainTree14Nov2011.tree -pt ./outfile
+ContrastMaxLHMarginalChangesWithParsimonyChanges.pl -f ./RAxML_marginalAncestralStates.BacteriaAncestral -st ./BacteriaTraits -o Contrasted -t ./BacteraSupraDomainTree14Nov2011.tree -pt ./outfile
 
 =head1 SYNOPSIS
 
