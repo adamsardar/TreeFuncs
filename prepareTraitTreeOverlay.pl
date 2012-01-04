@@ -6,7 +6,9 @@ prepareTraitTreeOverlay<.pl>
 
 =head1 USAGE
 
- prepareTraitTreeOverlay.pl [options -v,-d,-h] <ARGS>
+ prepareTraitTreeOverlay.pl (-si --supraid |-da --domarch) Input the domain architecture to study, with by DA string or as a comb_id [*-ss --supresssupra 0|1] supress supra domain colouring -t --tree tree file
+
+EXAMPLE: prepareTraitTreeOverlay.pl -t ./EukaryoteTreeDomaarc.tree -si 34 -ss 1 
 
 =head1 SYNOPSIS
 
@@ -166,7 +168,7 @@ my $SupraGenoemsString = join(' ',@$GenomesWithOnlySupra);
 
 unless($SupressSupra){
 	
-	print CSS '"stroke-width:2; stroke:blue" Individual '.$SupraGenoemsString."\n";
+	print CSS '"stroke-width:2; stroke:blue" Individual '.$SupraGenoemsString."\n" if(scalar(@$GenomesWithOnlySupra)); #only print out the format string for supra domains if there are any in the first place
 }
 
 close CSS;

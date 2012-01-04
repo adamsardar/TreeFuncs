@@ -10,7 +10,7 @@ ContrastMaxLHMarginalChangesWithParsimonyChanges<.pl>
 ContrastMaxLHMarginalChangesWithParsimonyChanges.pl [options -v,-d,-h] <ARGS>
 
 example:
-ContrastMaxLHMarginalChangesWithParsimonyChanges.pl -f ./RAxML_marginalAncestralStates.BacteriaAncestral -st ./BacteriaTraits -o Contrasted -t ./BacteraSupraDomainTree14Nov2011.tree -pt ./outfile
+ContrastMaxLHMarginalChangesWithParsimonyChanges.pl -f ./RAxML_marginalAncestralStates.BacteriaAncestral -st ./BacteriaTraits -o Contrasted -t ./BacteraSupraDomainTree14Nov2011.tree -o ./outfile
 
 =head1 SYNOPSIS
 
@@ -87,209 +87,7 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
 # Sub definitions
 #----------------------------------------------------------------------------------------------------------------
-=head1 DESCRIPTION
 
-Detailed info about the script goes here
-
-=head2 Methods
-=over 4
-=cut
-
-=item * RAxML_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$node,$traitlabelsarray)
-
-After running RAxMLAncestralMarginalStates_FileParser on a RAxML ancestral output, this function will calculate the number of rounded traits (i.e thresholded probabilities) that have been created or deleted along each branch.
-These are stored in:
-
-	$TreeCacheHash->{$node}{'RAxML_Number_Created'}
-	$TreeCacheHash->{$node}{'RAxML_Number_Deleated'}
-
-Also present for each node are:
-
-	$TreeCacheHash->{$node}{'RAxML_Total_Number_Created'}
-	$TreeCacheHash->{$node}{'RAxML_Total_Number_Deleated'}	
-
-=cut
-
-
-sub RAxML_Ancestral_Trait_Changes_in_Clade{ #Left out the prototyping arguments as its a recursive function. Be careful
-	
-	my ($TreeCacheHash,$node,$root,$traitlabelsarray) = @_;
-	
-	my $TraitLabelsProvided = (@_ < 4)?0:1; #Flag for is a list of trait labels provided - these are the traits that we wish to act upon. If nothign is provided, then all traits will be used
-	@$traitlabelsarray = (keys(%{$TreeCacheHash->{$root}{'Trait_String_Poistions_Lookup'}})) unless($TraitLabelsProvided); #If no traits were provided, assume that all labels are wanted
-		
-	die "No entries in '$TreeCacheHash->{$root}{'Trait_String_Poistions_Lookup'}'. Run RAxMLAncestralMarginalStates_FileParser first before using this function." unless(exists($TreeCacheHash->{$root}{'Trait_String_Poistions_Lookup'}));
-	
-	my @AncestorStates;
-	my $TraitsPositionsLookup = $TreeCacheHash->{$node}{'Trait_String_Poistions_Lookup'}; #All traits are stored as a logn string like 01001010010. We use substr to extract the one we want. This dictionary simply maps from trait to position
-	
-	if($node eq $root){
-		
-		@AncestorStates = (0) x scalar(@$traitlabelsarray); #If the node is the root, then all prescent traits are assumed to have been created beforehand. So it's ancestor will be all 0's.
-	}else{
-	
-		my $Ancestor = $TreeCacheHash->{$node}{'ancestor'};
-		my $AncestorStateString = $TreeCacheHash->{$Ancestor}{'RAxML_AncestralStates'};
-		@AncestorStates = map{substr($AncestorStateString,$_,1)}(@{$TraitsPositionsLookup}{@$traitlabelsarray});
-	}
-	
-	my $NodeStateString = $TreeCacheHash->{$node}{'RAxML_AncestralStates'};
-	my @NodeStates = map{substr($NodeStateString,$_,1)}(@{$TraitsPositionsLookup}{@$traitlabelsarray});
-		
-	my ($no_creations,$no_deletions) = (0,0); 
-	
-	foreach my $TraitIndex (0 .. (scalar(@$traitlabelsarray)-1)){
-		
-		my ($AncestorState,$NodeState) = ($AncestorStates[$TraitIndex],$NodeStates[$TraitIndex]);
-		
-		next if ($AncestorState ~~ '?' || $NodeState ~~ '?');
-		
-		die "Only binary states supported  $AncestorState $NodeState \n" unless ( scalar(grep{$_ == $AncestorState}(0,1)) && scalar(grep{$_ == $NodeState}(0,1)));
-	
-		if($AncestorState - $NodeState < 0){
-	
-			$no_creations ++;
-		}elsif($AncestorState - $NodeState > 0){
-	
-			$no_deletions ++;
-		}
-	}
-				
-	$TreeCacheHash->{$node}{'RAxML_Number_Created'} = $no_creations;
-	$TreeCacheHash->{$node}{'RAxML_Number_Deleted'} = $no_deletions;
-	#This is the number of traits created/deleted along the ancestral branch ABOVE the current node 
-	
-	unless ($TreeCacheHash->{$node}{'is_Leaf'}){
-			
-		my @Children = @{$TreeCacheHash->{$node}{'each_Descendent'}};
-			
-		$TreeCacheHash->{$node}{'RAxML_Total_Number_Created'} = $no_creations;
-		$TreeCacheHash->{$node}{'RAxML_Total_Number_Deleted'} = $no_deletions;	
-			
-		foreach my $Child (@Children){
-			
-			 my ($Total_no_creations,$Total_no_deletions) = RAxML_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$Child,$root,$traitlabelsarray);
-			#Notice the replacement of $node with $Child.
-			#Total_no_X is the number of deletions/ creations in branches BELOW this node. 
-			#This will be added to the number of deletions along this nodes ancestral branch to give the total in the clade BELOW the branch beneath the ancestor of the node under study
-
-			$TreeCacheHash->{$node}{'RAxML_Total_Number_Created'} += $Total_no_creations;
-			$TreeCacheHash->{$node}{'RAxML_Total_Number_Deleted'} += $Total_no_deletions;
-		}
-		
-		my ($Total_no_creations,$Total_no_deletions) = ($TreeCacheHash->{$node}{'RAxML_Total_Number_Created'},$TreeCacheHash->{$node}{'RAxML_Total_Number_Created'});
-		
-		return($Total_no_creations,$Total_no_deletions);
-			
-	}else{
-			
-		$TreeCacheHash->{$node}{'RAxML_Total_Number_Created'} = $no_creations;
-		$TreeCacheHash->{$node}{'RAxML_Total_Number_Deleted'} = $no_deletions;	
-			
-		return($no_creations,$no_deletions);	
-	}
-}
-
-
-=item * DOLLOP_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$node,$traitlabelsarray)
-
-After running DolloParsimonyAncestralState to calculate dollo parsimony ancestral states, this function will calculate the number of rounded traits (i.e thresholded probabilities) that have been created or deleted along each branch.
-These are stored in:
-
-	$TreeCacheHash->{$node}{'DOLLOP_Number_Created'}
-	$TreeCacheHash->{$node}{'DOLLOP_Number_Deleated'}
-
-Also present for each node are:
-
-	$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Created'}
-	$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Deleated'}	
-
-=cut
-
-sub DOLLOP_Ancestral_Trait_Changes_in_Clade{ #Left out the prototyping arguments as its a recursive function. Be careful
-	
-	my ($TreeCacheHash,$node,$root,$traitlabelsarray) = @_;
-	
-	my $TraitLabelsProvided = (@_ < 4)?0:1; #Flag for is a list of trait labels provided - these are the traits that we wish to act upon. If nothign is provided, then all traits will be used
-	@$traitlabelsarray = (keys(%{$TreeCacheHash->{$root}{'Trait_String_Poistions_Lookup'}})) unless($TraitLabelsProvided); #If no traits were provided, assume that all labels are wanted
-		
-	die "No entries in '$TreeCacheHash->{$root}{'Trait_String_Poistions_Lookup'}'. Run DolloParsimonyAncestralState first before using this function." unless(exists($TreeCacheHash->{$root}{'Trait_String_Poistions_Lookup'}));
-	
-	my @AncestorStates;
-	my $TraitsPositionsLookup = $TreeCacheHash->{$node}{'Trait_String_Poistions_Lookup'}; #All traits are stored as a logn string like 01001010010. We use substr to extract the one we want. This dictionary simply maps from trait to position
-	
-	if($node eq $root){
-		
-		@AncestorStates = (0) x scalar(@$traitlabelsarray); #If the node is the root, then all prescent traits are assumed to have been created beforehand. So it's ancestor will be all 0's.
-	}else{
-	
-		my $Ancestor = $TreeCacheHash->{$node}{'ancestor'};
-		my $AncestorStateString = $TreeCacheHash->{$Ancestor}{'DolloPTraitStates'};
-		@AncestorStates = map{substr($AncestorStateString,$_,1)}(@{$TraitsPositionsLookup}{@$traitlabelsarray});
-	}
-	
-	my $NodeStateString = $TreeCacheHash->{$node}{'DolloPTraitStates'};
-	my @NodeStates = map{substr($NodeStateString,$_,1)}(@{$TraitsPositionsLookup}{@$traitlabelsarray});
-		
-	my ($no_creations,$no_deletions) = (0,0); 
-	
-	foreach my $TraitIndex (0 .. (scalar(@$traitlabelsarray)-1)){
-		
-		my ($AncestorState,$NodeState) = ($AncestorStates[$TraitIndex],$NodeStates[$TraitIndex]);
-		
-		next if ($AncestorState ~~ '?' || $NodeState ~~ '?');
-		
-		die "Only binary states supported  $AncestorState $NodeState \n" unless ( scalar(grep{$_ == $AncestorState}(0,1)) && scalar(grep{$_ == $NodeState}(0,1)));
-	
-		if($AncestorState - $NodeState < 0){
-	
-			$no_creations ++;
-		}elsif($AncestorState - $NodeState > 0){
-	
-			$no_deletions ++;
-		}
-	}
-				
-	$TreeCacheHash->{$node}{'DOLLOP_Number_Created'} = $no_creations;
-	$TreeCacheHash->{$node}{'DOLLOP_Number_Deleted'} = $no_deletions;
-	#This is the number of traits created/deleted along the ancestral branch ABOVE the current node 
-	
-	unless ($TreeCacheHash->{$node}{'is_Leaf'}){
-			
-		my @Children = @{$TreeCacheHash->{$node}{'each_Descendent'}};
-			
-		$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Created'} = $no_creations;
-		$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Deleted'} = $no_deletions;	
-			
-		foreach my $Child (@Children){
-			
-			 my ($Total_no_creations,$Total_no_deletions) = DOLLOP_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$Child,$root,$traitlabelsarray);
-			#Notice the replacement of $node with $Child.
-			#Total_no_X is the number of deletions/ creations in branches BELOW this node. 
-			#This will be added to the number of deletions along this nodes ancestral branch to give the total in the clade BELOW the branch beneath the ancestor of the node under study
-
-			$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Created'} += $Total_no_creations;
-			$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Deleted'} += $Total_no_deletions;
-		}
-		
-		my ($Total_no_creations,$Total_no_deletions) = ($TreeCacheHash->{$node}{'DOLLOP_Total_Number_Created'},$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Deleted'});
-		
-		return($Total_no_creations,$Total_no_deletions);
-			
-	}else{
-			
-		$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Created'} = $no_creations;
-		$TreeCacheHash->{$node}{'DOLLOP_Total_Number_Deleted'} = $no_deletions;	
-			
-		return($no_creations,$no_deletions);	
-	}
-}
-
-foreach my $genome (@genome){
-	
-	print $genome."\n";
-	
-}
 
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
@@ -311,8 +109,6 @@ print "Parsed ML Ancestral States\n";
 DolloParsimonyAncestralState($TreeCacheHash,$root,$LeafSpeciesStatesFile,10); #Using 10 threads
 print "Parsed DOLLOP Ancestral States\n";
 
-#TODO Checking out the task marking part of EPIC
-
 my $NumberOfTraits = scalar(keys(%{$TreeCacheHash->{$root}{'DolloP_Trait_String_Poistions_Lookup'}}));
 
 RAxML_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$root,$root);
@@ -322,7 +118,6 @@ print $TreeCacheHash->{$root}{'RAxML_Total_Number_Deleted'}." = Total ML Deleted
 print $TreeCacheHash->{$root}{'RAxML_Number_Created'}."= Created ML above root\n";
 print $TreeCacheHash->{$root}{'RAxML_Number_Deleted'}." = Deleted ML above root\n";
 print "Finished with ML!\n";
-
 
 DOLLOP_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$root,$root);
 

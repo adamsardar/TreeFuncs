@@ -415,6 +415,9 @@ GetOptions("verbose|v!"  => \$verbose,
            "traitstyle|T=s" => \$TraitStyle,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
+#Print out some help if it was asked for or if no arguments were given.
+pod2usage(-exitstatus => 0, -verbose => 2) if $help;
+
 my $NewickTrees = [];
 my @TreeTaxa;
 
