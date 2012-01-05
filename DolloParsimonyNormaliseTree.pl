@@ -2,16 +2,15 @@
 
 =head1 NAME
 
-I<.pl>
+DolloParsimonyNormaliseTreeI<.pl>
 
 =head1 USAGE
 
- .pl [options -v,-d,-h] <ARGS>
+ DolloParsimonyNormaliseTree.pl [options -v,-d,-h] -t "TreeFile" -st "SpeciesTraitFile" -tbc|-tbd|-tbcd 1 "Tree by creations, deletions or both"
 
 =head1 SYNOPSIS
 
-A script to take a list of genomes (strains or whatever) and output some summary data regarding the domain architectures in common.
-
+Taking a tree and phylip trait alignment file as inputs, this tree allows you to normalise branch lengths so as to be proportional to dollow parsimony i.)Deletions ii.)Creations or ii.) both.
 =head1 AUTHOR
 
 B<Adam Sardar> - I<adam.sardar@bristol.ac.uk>
@@ -100,7 +99,6 @@ DOLLOP_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$root,$root);
 print STDERR $TreeCacheHash->{$root}{'DOLLOP_Total_Number_Created'}." = Total DOLLOP Created below root\n";
 print STDERR $TreeCacheHash->{$root}{'DOLLOP_Total_Number_Deleted'}." = Total DOLLOP Deleted below root\n";
 
-my $Tree = ExtractNewickSubtree($TreeCacheHash,$root,1,0);
 
 
 foreach my $TreeNode (keys(%{$TreeCacheHash})){
@@ -117,6 +115,31 @@ foreach my $TreeNode (keys(%{$TreeCacheHash})){
 	}elsif($TreeByDeletionsAndCreations){
 		
 		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'}+$TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'}/$NumberOfTraits;
+		
+	}else{
+		
+		die "Need to choose a method by which to normalise tree"
+	}
+}
+
+my $Tree = ExtractNewickSubtree($TreeCacheHash,$root,1,0);
+
+print $Tree."\n";
+
+foreach my $TreeNode (keys(%{$TreeCacheHash})){
+	
+	if($TreeByDeletions){
+	
+		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'};
+	
+	}elsif($TreeByCreations){
+		
+		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'};
+	
+		
+	}elsif($TreeByDeletionsAndCreations){
+		
+		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'}+$TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'};
 		
 	}else{
 		
