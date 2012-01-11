@@ -2,6 +2,7 @@
 
 =head1 NAME
 
+
 AncestralSQL2Newick<.pl>
 
 =head1 USAGE
@@ -52,13 +53,13 @@ B<Data::Dumper> Used for debug output.
 use Getopt::Long;                     #Deal with command line options
 use Pod::Usage;                       #Print a usage man page from the POD comments after __END__
 use Data::Dumper;                     #Allow easy print dumps of datastructures for debugging
-#use XML::Simple qw(:strict);          #Load a config file from the local directory
 use DBI;
 use Supfam::Utils;
-use Bio::TreeIO;
-use Bio::Tree::TreeFunctionsI;
-use IO::String;
 use Supfam::SQLFunc;
+use Supfam::TreeFuncsNonBP;
+
+
+
 # Command Line Options
 #----------------------------------------------------------------------------------------------------------------
 
@@ -68,9 +69,9 @@ my $help;    #Same again but this time should we output the POD man page defined
 my $rootleft;  #Root node from the tree (left id in SQL table) to be used.
 my $rootright; #Root node from the tree (right id in SQL table) to be used.
 my $deletiontreeflag; #Produce a tree with branch lengths equal to the number of domain architecture deltions along that edge
-my @excluded; # A list of genomes not wanted in this tree
-my $fileout = 'fileout'; #Output file
-my $include = 1; #use the 'include=y' option from the genome table?
+my $fileout = 'DolloDeletionsNormalisedTree'; #Output file
+
+my $file;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -80,15 +81,12 @@ GetOptions("verbose|v!"  => \$verbose,
            "rootright|rr=i" => \$rootright,
            "deletions|del:i" => \$deletiontreeflag,
            "output|o=s" => \$fileout,
-           "exclude|ex:s" => \@excluded,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
 
-
-my $RightTreeHash = {}; #A hash of the tree ordered by right id
-my $LeftTreeHash = {}; #A hash of the tree ordered by left id
+print "hi\n";
 
 my $dbh = dbConnect();
 my $sth;
@@ -110,114 +108,17 @@ if(defined($rootleft) && ! defined($rootright)){
 	die 'Need to provide either the left_id or right_id of root node, preferably both! ';	
 }
 
-$sth = $dbh->prepare("SELECT tree.left_id,tree.right_id,ancestral_info.comb_deleted,tree.nodename FROM tree JOIN ancestral_info ON tree.left_id=ancestral_info.left_id WHERE tree.left_id >= ? AND right_id <= ?;");
-$sth->execute($rootleft,$rootright);
+print $rootleft." Root Left ".$rootright." Root Right\n";
 
-#Initialise two hashes, keyed respectively by right and left ids, containing node data.
-while (my ($leftid,$rightid,$edge_length,$nodename) = $sth->fetchrow_array()){
-	
-	$edge_length=($edge_length+0.1)/33000; #33000 is a normalising factor
-	
-	my $NewickClade = 'NULL';#The calde below this node in newick format - initialise with a default value
-	
-	my $NodeData = [$nodename,$edge_length,$NewickClade];
-	
-	$RightTreeHash->{$rightid} = [$leftid,$NodeData];
-	$LeftTreeHash->{$leftid} = [$rightid,$NodeData];
-}
+my $SQLTreeCacheHash = supfamSQL2TreeHash($rootleft,$rootright);
 
-print join('-',sort(keys(%$LeftTreeHash)));
-print "\n";
+EasyDump('./Dump.dat',$SQLTreeCacheHash);
 
-my $NextGenLeftIDs = {};
-my $CurrentGenLeftIDs = [];
+normailseSQLTreeHashBranchForDeletions($SQLTreeCacheHash);
 
-foreach my $leftid (keys(%$LeftTreeHash)){
-	
-	my $rightid = $LeftTreeHash->{$leftid}[0];
-	
-	if ($rightid == ($leftid+1)){ #if node is a leaf
-			
-		no warnings 'uninitialized';	
-			
-		my ($nodename,$edge_length,$NewickClade) = @{$LeftTreeHash->{$leftid}[1]};
+my $DeletionsNormailsedTree = ExtractNewickSubtree($SQLTreeCacheHash,$rootleft,1,0);
 
-		my $NewickString = $nodename.":".$edge_length;
-		$LeftTreeHash->{$leftid}[1][2] = $NewickString; #Update old newick string from 'NULL' to correct value
-		
-		my $ParentLeftID;
-		$ParentLeftID = ($leftid-1) if(exists($LeftTreeHash->{($leftid-1)}));
-		$ParentLeftID = $RightTreeHash->{$rightid+1}[0] if(exists($RightTreeHash->{$RightTreeHash+1}));
-		$NextGenLeftIDs->{$ParentLeftID}++;
-	}	
-}
-#Collect a list of all leaf nodes (possibility of adding  additional functionality here - exclude a list of genomes)
-
-print $rootleft."  <- root left  ".$rootright."  <- root right\n";
-
-my $count =0;
-
-while ($LeftTreeHash->{$rootleft}[1][2] eq 'NULL'){
-	
-	#print "Iteration: ".$count++;
-	
-	no warnings;
-	
-	@$CurrentGenLeftIDs = keys(%$NextGenLeftIDs);
-	$NextGenLeftIDs = {};
-	#print "     Nodes in curent gen: ".scalar(@$CurrentGenLeftIDs)."\n";
-	
-	foreach my $leftid (@$CurrentGenLeftIDs) {
-		
-		my $rightid = $LeftTreeHash->{$leftid}[0];
-		
-		my ($LeftNewick,$RightNewick) = ('NULL','NULL');
-		$LeftNewick = $LeftTreeHash->{$leftid+1}[1][2] if (exists($LeftTreeHash->{$leftid+1}));
-		$RightNewick = $RightTreeHash->{$rightid-1}[1][2] if (exists($RightTreeHash->{$rightid-1}));
-								
-		if($LeftNewick ne 'NULL' && $RightNewick ne 'NULL'){
-			
-			#Aggregate two nodes below this one into a newick format
-			my $edge_length = $LeftTreeHash->{$leftid}[1][1];
-			my $NewickString = "(".$LeftNewick.",".$RightNewick."):".$edge_length;
-			#print $NewickString."\n";
-			$LeftTreeHash->{$leftid}[1][2] = $NewickString; #Update old newick string
-											
-		}else{
-
-			$NextGenLeftIDs->{$leftid}++;
-		}
-				
-		if($LeftTreeHash->{$leftid}[1][2] ne 'NULL'){
-		
-		$LeftTreeHash->{($leftid+1)}[1][2] = '' if(exists($LeftTreeHash->{($leftid+1)}));
-		$RightTreeHash->{$rightid-1}[1][2] = '' if(exists($RightTreeHash->{$rightid-1}));
-		
-		#Boring way to find the parent of the node under study if we have already found the newick format representation of the clade below (parent is ether left_id-1 or right_id+1)			
-			my $ParentLeftID;
-			$ParentLeftID = ($leftid-1) if(exists($LeftTreeHash->{($leftid-1)}));
-			$ParentLeftID = $RightTreeHash->{$rightid+1}[0] if(exists($RightTreeHash->{$RightTreeHash+1}));
-			$NextGenLeftIDs->{$ParentLeftID}++;
-		}	
-	}	
-}
-
-
-#Strange way to output the newick format tree - this is simply so as to be sure that the outputted tree is bioperl compatible
-my $FullTree = $LeftTreeHash->{$rootleft}[1][2];
-my $TreeString = "(".$FullTree.");\n";
-
-my $io = IO::String->new($TreeString);
-
-my $input = Bio::TreeIO->new(-fh => $io,
-                              -format => 'newick') or die $!;
-
-my $tree = $input->next_tree;
-
-my $NewickTree = $tree->as_text('newick');
-
-my $treeout = new Bio::TreeIO(-format => 'newick', -file   => ">$fileout");
-$treeout->write_tree($tree);
+print $DeletionsNormailsedTree."\n";
 
 __END__
 
