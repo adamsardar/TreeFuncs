@@ -44,10 +44,8 @@ B<Data::Dumper> Used for debug output.
 use Getopt::Long;                     #Deal with command line options
 use Pod::Usage;                       #Print a usage man page from the POD comments after __END__
 use Supfam::Utils;
-use Supfam::TreeFuncs;
+use Supfam::TreeFuncsNonBP;
 
-use Bio::TreeIO;
-use Bio::Tree::TreeFunctionsI;
 
 # Command Line Options
 #----------------------------------------------------------------------------------------------------------------
@@ -57,6 +55,9 @@ my $debug;   #As above for debug
 my $help;    #Same again but this time should we output the POD man page defined after __END__
 my $treeA;
 my $treeB;
+my $branchesflag;
+my $internalnodesflag;
+my $verboseintersection = 1;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -64,6 +65,9 @@ GetOptions("verbose|v!"  => \$verbose,
            "help|h!" => \$help,
            "tree1|t1=s" => \$treeA,
            "tree2|t2=s" => \$treeB,
+           "internal|i:i" => \$internalnodesflag,
+           "branches|b:i" => \$branchesflag,
+           "verboseintersection|vi:i" => \$verboseintersection,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
 
@@ -72,7 +76,7 @@ GetOptions("verbose|v!"  => \$verbose,
 
 my ($stringTreeA, $stringTreeB);
 
-open FHA, "<$treeA"; open FHB, "<$treeB";
+open FHA, "<$treeA"  or die $?; open FHB, "<$treeB"  or die $?;
 
 while (my $line = <FHA>){
 	$stringTreeA = $line;
@@ -86,19 +90,17 @@ while (my $line = <FHB>){
 
 close FHA; close FHB;
 
-#This framework of storing trees as as an io stream was chosen so as to allow for future expansion
+my ($TreeAObject,$Aroot,$TreeBObject,$Broot) = TreeIntersection($stringTreeA,$stringTreeB,$verboseintersection) ;
 
-my $treeAio = IO::String->new($stringTreeA); 
-my $treeBio = IO::String->new($stringTreeB);
+open OUTA, ">$treeA.isotree" or die $?; open OUTB, ">$treeB.isotree"  or die $?;
 
-my ($TreeAObject,$TreeBObject) = TreeIntersection($treeAio,$treeBio,1) ;
+my $StringA = ExtractNewickSubtree($TreeAObject,$Aroot,$branchesflag,$internalnodesflag);
 
-my $TreeAOut = Bio::TreeIO->new(-format => 'newick',
-                           -file   => ">$treeA.isotre");
-$TreeAOut->write_tree($TreeAObject);                     
+my $StringB = ExtractNewickSubtree($TreeBObject,$Broot,$branchesflag,$internalnodesflag);
 
-my $TreeBOut = Bio::TreeIO->new(-format => 'newick',
-                           -file   => ">$treeB.isotre");
-$TreeBOut->write_tree($TreeBObject); 
+print OUTA $StringA."\n";
+print OUTB $StringB."\n";
+
+close OUTA; close OUTB;
 
 __END__
