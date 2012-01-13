@@ -69,9 +69,6 @@ my $help;    #Same again but this time should we output the POD man page defined
 my $rootleft;  #Root node from the tree (left id in SQL table) to be used.
 my $rootright; #Root node from the tree (right id in SQL table) to be used.
 my $deletiontreeflag; #Produce a tree with branch lengths equal to the number of domain architecture deltions along that edge
-my $fileout = 'DolloDeletionsNormalisedTree'; #Output file
-
-my $file;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -80,13 +77,14 @@ GetOptions("verbose|v!"  => \$verbose,
            "rootleft|rl=i" => \$rootleft,
            "rootright|rr=i" => \$rootright,
            "deletions|del:i" => \$deletiontreeflag,
-           "output|o=s" => \$fileout,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
+        
+#Print out some help if it was asked for or if no arguments were given.
+pod2usage(-exitstatus => 0, -verbose => 2) if $help;
+        
 
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
-
-print "hi\n";
 
 my $dbh = dbConnect();
 my $sth;

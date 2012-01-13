@@ -79,13 +79,9 @@ my ($root,$TreeHash) = BuildTreeCacheHash($TreeString);
 
 close TREE;
 
+assignLeftRightIDs2TreeHash($TreeHash,$root);
 
-my $NewickString = Node2Newick($TreeHash,'ROOT',$root,1,0);
-#Read in tree
-
-
-
-
+EasyDump('Dump.oyt',$TreeHash);
 
 
 
