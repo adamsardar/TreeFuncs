@@ -106,17 +106,15 @@ if(defined($rootleft) && ! defined($rootright)){
 	die 'Need to provide either the left_id or right_id of root node, preferably both! ';	
 }
 
-print $rootleft." Root Left ".$rootright." Root Right\n";
+print STDERR $rootleft." Root Left ".$rootright." Root Right\n";
 
 my $SQLTreeCacheHash = supfamSQL2TreeHash($rootleft,$rootright);
 
-EasyDump('./Dump.dat',$SQLTreeCacheHash);
-
 normailseSQLTreeHashBranchForDeletions($SQLTreeCacheHash);
 
-my $DeletionsNormailsedTree = ExtractNewickSubtree($SQLTreeCacheHash,$rootleft,1,0);
+my $FullDeletionsNormailsedTree = ExtractNewickSubtree($SQLTreeCacheHash,$rootleft,1,0);
 
-print $DeletionsNormailsedTree."\n";
+print $FullDeletionsNormailsedTree."\n";
 
 __END__
 
