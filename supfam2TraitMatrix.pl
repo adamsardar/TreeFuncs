@@ -6,12 +6,14 @@ supfam2TraitMatrix<.pl>
 
 =head1 USAGE
 
-  supfam2TraitMatrix.pl [options -v,-d,-h] -t --tree <TreeFile in Newick> -o --output <outputfile name> -s --style <output style phylip|Hennig86|RAxML> (-T -- traitstyle supra|comb|multi  | -s --genomelist new line seperated lsit of genomes to produce traits for )
+  supfam2TraitMatrix.pl [options -v,-d,-h] -t --tree <TreeFile in Newick> -o --output <outputfile name> -s --style <output style phylip|Hennig86|RAxML> (-T -- traitstyle supra|comb|multi  | -s --genomelist new line seperated lsit of genomes/subgenomes to produce traits for )
 
 =head1 SYNOPSIS
 
 A script to generate a carachter trait matrix file of domain architecture combinations copatible with Phylip|RAxML|Hennig86 format from a specified tree file 
-(or list of trees with the same leaves - Phylip). This works purely with domain architectures, not supradomains (yet!).
+(or list of trees with the same leaves - Phylip).
+
+If you wish to include SUPERFAMILY subgenomes, you may. Label them as metagenome_subgenome in your input file/tree.
 
 =head1 AUTHOR
 
@@ -157,21 +159,27 @@ sub RAxMLOutput($$){
 	close OUT;
 }
 
-sub generateDomArchTraits($){
+sub generateDomArchTraits($$){
 	
-	my (@TreeTaxa);
-	@TreeTaxa = @{$_[0]};
-	
-	my $NoTreeTaxa = scalar(@TreeTaxa);
+	my (@FullGenomes,@SubGenomes);
+	@FullGenomes = @{$_[0]};
+	@SubGenomes= @{$_[1]};
 	
 	#Create a hash of all the trait vectors per taxon
-	my $TraitHash = {};
-	#$TraitHash -> {taxon => binary traits}
 	my $FullSpeciesTraitsHash = {};
+	my $TraitHash = {};	
 	#$TraitHash -> {taxon => binary traits}, but crucially, this will still contain sites which are identical throughout the whole sample of taxa
-			
-	my $lensupraquery = join ("' or len_supra.genome='", @TreeTaxa); $lensupraquery = "(len_supra.genome='$lensupraquery')";# An ugly way to make the query run - as there is no way to input a list of items explicitly into SQL, I'm just concatenating a string of truth statements
+	#$TraitHash -> {taxon => binary traits}
+
+	#Get a full list of all the comb ids
 	
+	my $NumberFullGenomes = scalar(@FullGenomes);
+	my $NumberSubGenomes = scalar(@SubGenomes);
+	my $FullGenomeTreeTaxa = $NumberFullGenomes + $NumberSubGenomes;
+	
+	my $lensupraquery = join ("' or len_supra.genome='", @FullGenomes); $lensupraquery = "(len_supra.genome='$lensupraquery')";# An ugly way to make the query run - as there is no way to input a list of items explicitly into SQL, I'm just concatenating a string of truth statements
+	
+	# ... first for all the full genomes
 	my $dbh = dbConnect();
 	my $sth = $dbh->prepare("SELECT DISTINCT(supra_id) FROM len_supra WHERE len_supra.ascomb_prot_number > 0 AND $lensupraquery;");
 	$sth->execute();
@@ -183,16 +191,39 @@ sub generateDomArchTraits($){
 		push(@comb_ids,$CombID);
 	}
 	
+	$sth->finish();
+	
+	my $TempCombHash = {};
+	map{$TempCombHash->{$_}++}@comb_ids;
+	
+	# ... and then the subgenomes
+	
+	$sth = $dbh->prepare("SELECT DISTINCT(supra_id) FROM sublen_supra WHERE sublen_supra.ascomb_prot_number > 0 AND sublen_supra.genome = ? AND sublen_supra.subgenome = ?;");
+	
+	foreach my $subgen (@SubGenomes){
+		
+		my ($maingen,$subgenome) = split('_',$subgen);
+			
+			$sth->execute($maingen,$subgenome);
+			
+			while(my $SubgenomeCombID = $sth->fetchrow_array()){
+				
+				$TempCombHash->{$SubgenomeCombID}++;
+			}
+	}
+	
+	$sth->finish();
+	@comb_ids = keys(%$TempCombHash); #Find all the comb ids of interest to our data output
+	
 	my %CombHash;
-	
 	@CombHash{@comb_ids}=((0)x scalar(@comb_ids));#Preallocate
-	
+		
+	#Generate trait hash for the full genomes
 	$sth = $dbh->prepare("SELECT supra_id FROM len_supra WHERE ascomb_prot_number > 0 AND genome = ?;");
 	
 	my %ModelCombHash = %CombHash;
 	
-	
-	foreach my $taxa (@TreeTaxa){
+	foreach my $taxa (@FullGenomes){
 		
 		my %SpeciesCombsHash = %ModelCombHash; #Create a duplicate of %CombHash
 		
@@ -209,45 +240,75 @@ sub generateDomArchTraits($){
 		$FullSpeciesTraitsHash->{$taxa}=join(',',@SpeciesCombs);
 	}
 	
-	dbDisconnect($dbh) ; 
+	$sth->finish();
+
+	#Generate trait hash for the sub genomes
+	$sth = $dbh->prepare("SELECT supra_id FROM sublen_supra WHERE ascomb_prot_number > 0 AND genome = ? AND subgenome = ?;");
 	
+	foreach my $taxa (@SubGenomes){
+		
+			my ($maingen,$subgenome) = split('_',$taxa);
+			
+			my %SpeciesCombsHash = %ModelCombHash; #Create a duplicate of %CombHash
+				
+			$sth->execute($maingen,$subgenome);
+			
+		while (my $SpeciesCombID = $sth->fetchrow_array() ) {
+		
+			$SpeciesCombsHash{$SpeciesCombID}=1; #Per species presence/abscence
+			$CombHash{$SpeciesCombID}++; #Global total sightings
+		}
+			
+		my @SpeciesCombs = @SpeciesCombsHash{sort(@comb_ids)}; #Sorted by comb_id -> presences absece matrix 000101 etc
+		
+		$FullSpeciesTraitsHash->{$taxa}=join(',',@SpeciesCombs);		
+	}	
+	
+	dbDisconnect($dbh); 
+		
 	#Calculate the informative sites and exclude the others
 	my $index=0;
 	my @InformativeSites;
 	
 	foreach my $comb_id (sort(@comb_ids)){
 		
-		push (@InformativeSites,$index) if($CombHash{$comb_id} != $NoTreeTaxa && $CombHash{$comb_id} != 0);
+		push (@InformativeSites,$index) if($CombHash{$comb_id} != $FullGenomeTreeTaxa && $CombHash{$comb_id} != 0);
 		$index++;
 	}
 	
 	#Selecting only the informative sites, create the trait strings which shall be outputted to file
-	foreach my $taxa (@TreeTaxa){
+	foreach my $taxa (@FullGenomes,@SubGenomes){
 		
 		my @Traits = split(',',$FullSpeciesTraitsHash->{$taxa}); #Full combs
 		my $TraitString = join('',@Traits[@InformativeSites]);
 		$TraitHash->{$taxa}=$TraitString;
 	}
-		
+	
 	return($TraitHash);
-		
 }
 
-sub generateSupraTraits($){
+sub generateSupraTraits($$){
 	
-	my (@TreeTaxa);
-	@TreeTaxa = @{$_[0]};
 	
-	my $NoTreeTaxa = scalar(@TreeTaxa);
+	my (@FullGenomes,@SubGenomes);
+	@FullGenomes = @{$_[0]};
+	@SubGenomes= @{$_[1]};
 	
 	#Create a hash of all the trait vectors per taxon
-	my $TraitHash = {};
-	#$TraitHash -> {taxon => binary traits}
 	my $FullSpeciesTraitsHash = {};
+	my $TraitHash = {};	
 	#$TraitHash -> {taxon => binary traits}, but crucially, this will still contain sites which are identical throughout the whole sample of taxa
-			
-	my $lensupraquery = join ("' or len_supra.genome='", @TreeTaxa); $lensupraquery = "(len_supra.genome='$lensupraquery')";# An ugly way to make the query run - as there is no way to input a list of items explicitly into SQL, I'm just concatenating a string of truth statements
+	#$TraitHash -> {taxon => binary traits}
+
+	#Get a full list of all the comb ids
 	
+	my $NumberFullGenomes = scalar(@FullGenomes);
+	my $NumberSubGenomes = scalar(@SubGenomes);
+	my $FullGenomeTreeTaxa = $NumberFullGenomes + $NumberSubGenomes;
+	
+	my $lensupraquery = join ("' or len_supra.genome='", @FullGenomes); $lensupraquery = "(len_supra.genome='$lensupraquery')";# An ugly way to make the query run - as there is no way to input a list of items explicitly into SQL, I'm just concatenating a string of truth statements
+	
+	# ... first for all the full genomes
 	my $dbh = dbConnect();
 	my $sth = $dbh->prepare("SELECT DISTINCT(supra_id) FROM len_supra WHERE $lensupraquery;");
 	$sth->execute();
@@ -259,16 +320,39 @@ sub generateSupraTraits($){
 		push(@comb_ids,$CombID);
 	}
 	
+	$sth->finish();
+	
+	my $TempCombHash = {};
+	map{$TempCombHash->{$_}++}@comb_ids;
+	
+	# ... and then the subgenomes
+	
+	$sth = $dbh->prepare("SELECT DISTINCT(supra_id) FROM sublen_supra WHERE sublen_supra.genome = ? AND sublen_supra.subgenome = ?;");
+	
+	foreach my $subgen (@SubGenomes){
+		
+		my ($maingen,$subgenome) = split('_',$subgen);
+			
+			$sth->execute($maingen,$subgenome);
+			
+			while(my $SubgenomeCombID = $sth->fetchrow_array()){
+				
+				$TempCombHash->{$SubgenomeCombID}++;
+			}
+	}
+	
+	$sth->finish();
+	@comb_ids = keys(%$TempCombHash); #Find all the comb ids of interest to our data output
+	
 	my %CombHash;
-	
 	@CombHash{@comb_ids}=((0)x scalar(@comb_ids));#Preallocate
-	
+		
+	#Generate trait hash for the full genomes
 	$sth = $dbh->prepare("SELECT supra_id FROM len_supra WHERE genome = ?;");
 	
 	my %ModelCombHash = %CombHash;
 	
-	
-	foreach my $taxa (@TreeTaxa){
+	foreach my $taxa (@FullGenomes){
 		
 		my %SpeciesCombsHash = %ModelCombHash; #Create a duplicate of %CombHash
 		
@@ -285,26 +369,50 @@ sub generateSupraTraits($){
 		$FullSpeciesTraitsHash->{$taxa}=join(',',@SpeciesCombs);
 	}
 	
-	dbDisconnect($dbh) ; 
+	$sth->finish();
+
+	#Generate trait hash for the sub genomes
+	$sth = $dbh->prepare("SELECT supra_id FROM sublen_supra WHERE genome = ? AND subgenome = ?;");
 	
+	foreach my $taxa (@SubGenomes){
+		
+			my ($maingen,$subgenome) = split('_',$taxa);
+			
+			my %SpeciesCombsHash = %ModelCombHash; #Create a duplicate of %CombHash
+				
+			$sth->execute($maingen,$subgenome);
+			
+		while (my $SpeciesCombID = $sth->fetchrow_array() ) {
+		
+			$SpeciesCombsHash{$SpeciesCombID}=1; #Per species presence/abscence
+			$CombHash{$SpeciesCombID}++; #Global total sightings
+		}
+			
+		my @SpeciesCombs = @SpeciesCombsHash{sort(@comb_ids)}; #Sorted by comb_id -> presences absece matrix 000101 etc
+		
+		$FullSpeciesTraitsHash->{$taxa}=join(',',@SpeciesCombs);		
+	}	
+	
+	dbDisconnect($dbh); 
+		
 	#Calculate the informative sites and exclude the others
 	my $index=0;
 	my @InformativeSites;
 	
 	foreach my $comb_id (sort(@comb_ids)){
 		
-		push (@InformativeSites,$index) if($CombHash{$comb_id} != $NoTreeTaxa && $CombHash{$comb_id} != 0);
+		push (@InformativeSites,$index) if($CombHash{$comb_id} != $FullGenomeTreeTaxa && $CombHash{$comb_id} != 0);
 		$index++;
 	}
 	
 	#Selecting only the informative sites, create the trait strings which shall be outputted to file
-	foreach my $taxa (@TreeTaxa){
+	foreach my $taxa (@FullGenomes,@SubGenomes){
 		
 		my @Traits = split(',',$FullSpeciesTraitsHash->{$taxa}); #Full combs
 		my $TraitString = join('',@Traits[@InformativeSites]);
 		$TraitHash->{$taxa}=$TraitString;
 	}
-		
+	
 	return($TraitHash);
 		
 }
@@ -313,8 +421,11 @@ sub generateMultistateTraits($){
 	
 	#Multistate refers to a system which, rather than simply treating traits as present or ansent, gives several levels. 0 = absent, 1 = present as a supradomain and 2 = present as a domain architecture
 	
-	my (@TreeTaxa);
+	my (@TreeTaxa,@SubGenomes);
 	@TreeTaxa = @{$_[0]};
+	@SubGenomes= @{$_[1]};
+	
+	print STDERR "Multistate only available for full genomes at current. Output file will only contain the ".scalar(@TreeTaxa)." full genomes\n" if scalar(@SubGenomes);
 	
 	my $NoTreeTaxa = scalar(@TreeTaxa);
 	
@@ -484,38 +595,71 @@ my $dbh = dbConnect();
 
 my $sth = $dbh->prepare_cached("SELECT genome FROM genome WHERE genome = ?;");
 
+my @FullGenomes;
+
 foreach my $Taxa (@TreeTaxa){
 	
 	$sth->execute($Taxa);
-	die "No entry in genome table of SUPEERFAMILY for $Taxa\n" unless($sth->rows());
-	$sth->finish;
+	if($sth->rows()){
+		
+		push(@FullGenomes,$Taxa);
+	}
+	$sth->finish;	
+}
+
+my @SubGenomes;
+
+$sth = $dbh->prepare_cached("SELECT genome,subgenome FROM subgenome WHERE genome = ? AND subgenome = ?;");
+
+foreach my $Taxa (@TreeTaxa){
+	
+	my ($genome,$subgenome)=split('_',$Taxa);
+	$sth->execute($genome,$subgenome);
+	if($sth->rows()){
+		
+		push(@SubGenomes,$Taxa);
+	}
+	$sth->finish;	
 }
 
 dbDisconnect($dbh) ; 
 
+my @SupfamGenome = (@FullGenomes,@SubGenomes);
 
-#Generate the appropriate set of traits
+unless(scalar(@SupfamGenome)){
+
+	die "Can't find any of the input genomes in the SUPERFAMILY database. If using sub genomes, you need to supply taxa in the form metagenome.subgenome\n";	
+
+}else{
+	
+	print scalar(@TreeTaxa)." taxa in input file \n\n";
+	print "Found ".scalar(@SupfamGenome)." genomes in total in SUPERFAMILY:\n";
+	print scalar(@FullGenomes)." full genomes\n";
+	print scalar(@SubGenomes)." sub genomes\n";
+}
+
+
+#Generate the appropriate set of traits for normal genomes
 
 my $TraitHash;
 
 if($TraitStyle =~ m/comb/i){
 	
-	$TraitHash = generateDomArchTraits(\@TreeTaxa);
+	$TraitHash = generateDomArchTraits(\@FullGenomes,\@SubGenomes);
 	
 }elsif($TraitStyle =~ m/supra/i){
 	
-	$TraitHash = generateSupraTraits(\@TreeTaxa);
+	$TraitHash = generateSupraTraits(\@FullGenomes,\@SubGenomes);
 	
 }elsif($TraitStyle =~ m/multi/i){
 	
-	$TraitHash = generateMultistateTraits(\@TreeTaxa);
+	$TraitHash = generateMultistateTraits(\@FullGenomes);
 	
 }else{
 	
-	$TraitHash = generateDomArchTraits(\@TreeTaxa);
+	$TraitHash = generateDomArchTraits(\@FullGenomes,\@SubGenomes);
 	print STDERR "No Appropriate Output chosen, generating domain architecture traits instead \n";
 }
-
 
 #Wrtie only the records for species in the tree to file
 
@@ -535,7 +679,7 @@ if($OutputStyle =~ m/Hennig86/i){
 }else{
 	
 	RAxMLOutput($TraitHash,$outputfile);
-	print STDERR 'No Appropriate Output chosen, outputted RAxML format instead';
+	print STDERR 'No Appropriate Output chosen, outputted RAxML format instead'."\n";
 }
 
 __END__
