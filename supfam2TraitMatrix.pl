@@ -519,7 +519,7 @@ sub generateMultistateTraits($){
 GetOptions("verbose|v!"  => \$verbose,
            "debug|d!"  => \$debug,
            "help|h!" => \$help,
-           "tree|t=s" => \$TreeFile,
+           "tree|tr=s" => \$TreeFile,
            "genomelist|g=s" => \$GenomeListFile,
            "output|o=s" => \$outputfile,
            "style|s:s" => \$OutputStyle,

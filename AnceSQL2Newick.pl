@@ -11,7 +11,7 @@ AncestralSQL2Newick<.pl>
  
  Example usage:
  
- AnceSQL2Newick.pl -rl 3 -rr 1364 -o Ancestral
+ AnceSQL2Newick.pl -rl 3 -rr 1364 > Tree.nwk
  
  To extract genomes from the root of all eukaryotes.
  Don't forget! Bacterial dollo parsmiony results are not present in SUPERFAMILY, as dollo parsimony is a very poor model for bacteria.

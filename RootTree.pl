@@ -89,6 +89,9 @@ GetOptions("verbose|v!"  => \$verbose,
 #Get a collection of nodeIDs by which to root tree#use XML::Simple qw(:strict);          #Load a config file from the local directory
 
 
+#Print out some help if it was asked for or if no arguments were given.
+pod2usage(-exitstatus => 0, -verbose => 2) if $help;
+
 $outputfile = "$TreeFile.Extract" unless(defined($outputfile));
 
 my $OutgroupNodes = []; #This is the outgroup for the tree
