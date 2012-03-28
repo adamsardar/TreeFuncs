@@ -6,7 +6,7 @@ supfam2TraitMatrix<.pl>
 
 =head1 USAGE
 
-  supfam2TraitMatrix.pl [options -v,-d,-h] -t --tree <TreeFile in Newick> -o --output <outputfile name> -s --style <output style phylip|Hennig86|RAxML> (-T -- traitstyle supra|comb|multi  | -s --genomelist new line seperated lsit of genomes/subgenomes to produce traits for )
+  supfam2TraitMatrix.pl [options -v,-d,-h] -t --tree <TreeFile in Newick> -o --output <outputfile name> -s --style <output style phylip|Hennig86|RAxML> (-T -- traitstyle supra|comb|multi  | -g --genomelist new line seperated lsit of genomes/subgenomes to produce traits for )
 
 =head1 SYNOPSIS
 

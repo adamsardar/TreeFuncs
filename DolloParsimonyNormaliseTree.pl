@@ -6,7 +6,7 @@ DolloParsimonyNormaliseTreeI<.pl>
 
 =head1 USAGE
 
- DolloParsimonyNormaliseTree.pl [options -v,-d,-h] -t "TreeFile" -st "SpeciesTraitFile" -tbc|-tbd|-tbcd 1 "Tree by creations, deletions or both"
+ DolloParsimonyNormaliseTree.pl [options -v,-d,-h] -t "TreeFile" -st "SpeciesTraitFile" -tbc|-tbd|-tbcd 1 "Tree by creations, deletions or both" -TD --nthreads #Threads
 
 =head1 SYNOPSIS
 
@@ -59,6 +59,7 @@ my $LeafSpeciesStatesFile;
 my $TreeByCreations;
 my $TreeByDeletions;
 my $TreeByDeletionsAndCreations;
+my $nthread = 10;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -69,6 +70,7 @@ GetOptions("verbose|v!"  => \$verbose,
             "treebydeletions|tbc:i" => \$TreeByCreations,
            "treebycreations|tbd:i" => \$TreeByDeletions,
            "treebydelsandcreats|tbcd:i" => \$TreeByDeletionsAndCreations,
+           "nthreads|TD:i" => \$nthread,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
 #Print out some help if it was asked for or if no arguments were given.
@@ -88,7 +90,7 @@ close FH;
 my ($root,$TreeCacheHash) = BuildTreeCacheHash($NewickStringOfTree);
 print STDERR "Built TreeCacheHash\n";
 
-DolloParsimonyAncestralState($TreeCacheHash,$root,$LeafSpeciesStatesFile,10); #Using 10 threads
+DolloParsimonyAncestralState($TreeCacheHash,$root,$LeafSpeciesStatesFile,$nthread); #Using 10 threads
 print STDERR "Parsed DOLLOP Ancestral States\n";
 
 my $NumberOfTraits = scalar(keys(%{$TreeCacheHash->{$root}{'DolloP_Trait_String_Poistions_Lookup'}}));
@@ -110,7 +112,6 @@ foreach my $TreeNode (keys(%{$TreeCacheHash})){
 		
 		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'}/$NumberOfTraits;
 	
-		
 	}elsif($TreeByDeletionsAndCreations){
 		
 		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'}+$TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'}/$NumberOfTraits;
