@@ -108,12 +108,10 @@ $sth = $dbh->prepare("SELECT len_supra.supra_id, MIN(tree.left_id)
 					JOIN tree
 					ON genome.taxon_id = tree.taxon_id
 					WHERE len_supra.ascomb_prot_number > 0
-					AND genome.include = 'y'
-					AND tree.left_id > ?
-					AND tree.right_id < ?	
+					AND (genome.include = 'y' OR genome.include = 's') 
 					GROUP BY len_supra.supra_id;");
 					
-$sth->execute($rootleft,$rootright);
+$sth->execute();
 
 while (my ($DomArch,$Min_Left_id) = $sth->fetchrow_array()){
 	
@@ -122,19 +120,17 @@ while (my ($DomArch,$Min_Left_id) = $sth->fetchrow_array()){
 
 $sth->finish;
 
-$sth = $dbh->prepare("SELECT len_supra.supra_id, max(tree.right_id)
+$sth = $dbh->prepare("SELECT len_supra.supra_id, MAX(tree.right_id)
 					FROM len_supra 
 					JOIN genome 
 					ON genome.genome = len_supra.genome
 					JOIN tree
 					ON genome.taxon_id = tree.taxon_id
 					WHERE len_supra.ascomb_prot_number > 0
-					AND genome.include = 'y'
-					AND tree.left_id > ?
-					AND tree.right_id < ?	
+					AND (genome.include = 'y' OR genome.include = 's') 
 					GROUP BY len_supra.supra_id;");
 
-$sth->execute($rootleft,$rootright);
+$sth->execute();
 
 while (my ($DomArch,$Max_right_id) = $sth->fetchrow_array()){
 	
@@ -166,13 +162,18 @@ foreach my $DomArch (keys(%$DomArch2leftRightIDs)){
 	
 	next if ($minleft == $maxright-1); #i.e. the architecture is present in just one genome, which is it's own MRCA
 	
+
 	$sth->execute($minleft,$maxright,$DomArch);
 
 	my ($SupraStatus,$MRCAleft_id,$MRCAright_id) = $sth->fetchrow_array();
 	
-	next if ($MRCAleft_id == $rootleft);
+	if ($minleft <= $rootleft || $maxright >= $rootright ){
+		delete($DomArchMRCA->{$DomArch});
+		next ;
+	}	#If the dom arch has a MRCA earlier than the desired root of study
 	
 	$DomArchMRCA->{$DomArch}=[$MRCAleft_id,$MRCAright_id];
+	print STDERR "$DomArch not assigned correctly - min left_id: $minleft and max right: $maxright MRCA left_id: $MRCAleft_id MRCA status\n" if($SupraStatus ~~ undef);
 	
 	print CREATED "Domain Architecture with supra_id: $DomArch not assigned correctly - min left_id: $minleft and max right: $maxright MRCA left_id: $MRCAleft_id MRCA status: $SupraStatus (should be created!) \n" unless ($SupraStatus =~ m/created/i);	
 
@@ -250,7 +251,6 @@ foreach my $DomArch (keys(%$DomArchMRCA)){
 											WHERE tree.left_id >= ? 
 											AND tree.right_id <= ? 
 											AND len_supra.supra_id = ? 
-											AND genome.include = 'y'
 											AND len_supra.ascomb_prot_number > 0;");	
 			
 				$sth->execute($Ancestor_lid,$Ancestor_rid,$DomArch);
@@ -294,6 +294,9 @@ foreach my $DomArch (keys(%$DomArchMRCA)){
 					$sth->execute($genome_lid,$DomArch);
 							
 					my ($SupraStatus,$del_lid,$del_rid) = $sth->fetchrow_array();			
+					
+					print STDERR "Domain Architecture with supra_id: $DomArch not assigned correctly - left_id: $del_lid and right_id: $del_rid" if($SupraStatus ~~ undef);
+	
 					
 					print DELETED "Domain Architecture with supra_id: $DomArch not assigned correctly - left_id: $del_lid and right_id: $del_rid: MRCA status: $SupraStatus (should be deleted!) - Example OutGroup: $ExampleOutGroup \n" unless ($SupraStatus =~ m/deleted/i);	
 										

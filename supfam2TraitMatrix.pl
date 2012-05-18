@@ -13,7 +13,7 @@ supfam2TraitMatrix<.pl>
 A script to generate a carachter trait matrix file of domain architecture combinations copatible with Phylip|RAxML|Hennig86 format from a specified tree file 
 (or list of trees with the same leaves - Phylip).
 
-If you wish to include SUPERFAMILY subgenomes, you may. Label them as metagenome_subgenome in your input file/tree.
+If you wish to include SUPERFAMILY subgenomes, you may. Label them as 'metagenome_subgenome' in your input file/tree.
 
 =head1 AUTHOR
 
