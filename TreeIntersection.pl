@@ -32,7 +32,7 @@ use warnings;
 
 # Add Local Library to LibPath
 #----------------------------------------------------------------------------------------------------------------
-#use lib "$ENV{HOME}/bin/perl-libs-custom/";
+use lib "$ENV{HOME}/bin/perl-libs-custom/";
 
 # CPAN Includes
 #----------------------------------------------------------------------------------------------------------------
@@ -45,6 +45,7 @@ use Getopt::Long;                     #Deal with command line options
 use Pod::Usage;                       #Print a usage man page from the POD comments after __END__
 
 use Supfam::Utils;
+use Carp;
 #use Supfam::hgt;
 use Supfam::SQLFunc;
 use Supfam::TreeFuncsNonBP;
@@ -111,7 +112,9 @@ if($treeB){
 	
 	while (my $line = <LIST>){
 		chomp($line);
-		push(@GenomesList,$line);
+		die "Input contains a semicolon ; - a dissallowed newick carachter on line $. - $line!\n" if ($line =~ m/;{1}/);
+		die "Input contains a bracket ( or ) - a dissallowed newick carachter on line $. - $line!\n" if ($line =~ m/[\(\)]{1}/);
+		push(@GenomesList,$line);		
 	}
 	close LIST;
 	
