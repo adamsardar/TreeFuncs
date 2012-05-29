@@ -75,7 +75,9 @@ GetOptions("verbose|v!"  => \$verbose,
            "branches|b:i" => \$branchesflag,
            "verboseintersection|vi:i" => \$verboseintersection,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
-
+        
+#Print out some help if it was asked for or if no arguments were given.
+pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
