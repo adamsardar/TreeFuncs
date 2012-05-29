@@ -6,12 +6,15 @@ TreeIntersection<.pl>
 
 =head1 USAGE
 
- TreeIntersection.pl -t1 --tree1 <tree1.file> (-t2 --tree2 <tree2.file> | -l --list new_line_seperated_list_of_nodes.tx)
+ TreeIntersection.pl -t1 --tree1 <tree1.file> (-t2 --tree2 <tree2.file> | -l --list new_line_seperated_list_of_nodes.tx) [-b flag for branch legnths] [-vi verbose intersection - gives more information during the intersection process] 
 
 =head1 SYNOPSIS
 
 A script to take two tree files and output two new treefiles, both of which contain the same nodes (i.e. they can only differ on topology and branch lengths, not on leaves). Another option
-is to 
+is to pass in a new line seperated lsit of genomes to be included in the output file. don't forget to specify the branches flag (-b) if you wish to keep branch lengths.
+
+The speed is ... acceptable. For a 1200 leaf tree intersecting with a list of 20 genomes (so nearing the worst case scenario) it took 5 minutes. If you need it to be faster, give me a shout on the github page and maybe I can speed it up.
+
 =head1 AUTHOR
 
 B<Adam Sardar> - I<adam.sardar@bristol.ac.uk>
@@ -22,13 +25,14 @@ Copyright 2011 Gough Group, University of Bristol.
 
 =head1 EDIT HISTORY
 
+See https://github.com/adamsardar/TreeFuncs/commits/master for the package history. Also, this is the appropriate place to raise bugs.
+
 =cut
 
 # Strict Pragmas
 #----------------------------------------------------------------------------------------------------------------
 use strict;
 use warnings;
-#use diagnostics;
 
 # Add Local Library to LibPath
 #----------------------------------------------------------------------------------------------------------------
@@ -46,10 +50,8 @@ use Pod::Usage;                       #Print a usage man page from the POD comme
 
 use Supfam::Utils;
 use Carp;
-#use Supfam::hgt;
 use Supfam::SQLFunc;
 use Supfam::TreeFuncsNonBP;
-
 
 # Command Line Options
 #----------------------------------------------------------------------------------------------------------------
@@ -71,9 +73,9 @@ GetOptions("verbose|v!"  => \$verbose,
            "tree1|t1=s" => \$treeA,
            "tree2|t2:s" => \$treeB,
            "list|l:s" => \$listofgenomes,
-           "internal|i:i" => \$internalnodesflag,
-           "branches|b:i" => \$branchesflag,
-           "verboseintersection|vi:i" => \$verboseintersection,
+           "internal|i!" => \$internalnodesflag,
+           "branches|b!" => \$branchesflag,
+           "verboseintersection|vi!" => \$verboseintersection,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
         
 #Print out some help if it was asked for or if no arguments were given.
