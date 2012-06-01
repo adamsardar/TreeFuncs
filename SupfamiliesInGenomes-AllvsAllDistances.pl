@@ -372,7 +372,7 @@ my $procmanager = new Parallel::ForkManager($maxProcs) if ($maxProcs);# Initiali
 			foreach my $Genome (keys(%$AverageZscores)){
 				
 				my $AverageZscore = $AverageZscores->{$Genome}/($No_Genomes-1);
-				print ZSCORES $DomArch."\t".$Genome."\t".$AverageZscore;
+				print ZSCORES $DomArch."\t".$Genome."\t".$AverageZscore."\n";
 			}			
 	
 			#Output to data file
