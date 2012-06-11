@@ -15,6 +15,8 @@ An optional flag allows you to cut only the sequences that have model assignment
 
 This is a SLOW process (ca. 20min for a family)
 
+The script originally used the seqid field from the protein table of superfamily. However, 
+
 =head1 AUTHOR
 
 B<Adam Sardar> - I<adam.sardar@bristol.ac.uk>
@@ -72,6 +74,7 @@ GetOptions("verbose|v!"  => \$verbose,
            "cut|c!" => \$cut_sequences,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
+pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
@@ -87,9 +90,8 @@ print STDERR "Fetching sequences from SUPERFAMILY ...... ";
 
 if($superfamily_id){
 
-		$sth=$dbh->prepare("SELECT protein.seqid, genome_sequence.sequence, ass.region 
+		$sth=$dbh->prepare("SELECT ass.protein, genome_sequence.sequence, ass.region 
 		FROM ass JOIN genome_sequence ON ass.protein = genome_sequence.protein
-		JOIN protein ON ass.protein = protein.protein
 		WHERE ass.sf = ?
 		AND ass.evalue <= 0.0001
 		;");
@@ -97,10 +99,9 @@ if($superfamily_id){
 	
 }elsif($family_id){
 	
-	$sth=$dbh->prepare("SELECT protein.seqid, genome_sequence.sequence, ass.region 
+	$sth=$dbh->prepare("SELECT ass.protein, genome_sequence.sequence, ass.region 
 		FROM ass JOIN genome_sequence ON ass.protein = genome_sequence.protein 
 		JOIN family ON family.auto = ass.auto
-		JOIN protein ON ass.protein = protein.protein
 		WHERE family.fa = ?
 		AND family.evalue <= 0.0001
 		;");
@@ -155,7 +156,7 @@ if($cut_sequences){
 	}
 }
 
-#EasyDump('ProtID2Sequence.dump',$SequencesHash);
+EasyDump('ProtID2Sequence.dump',$SequencesHash);
 
 open SEQOUT, ">$output" or die "Unable to open outfile $output".$!;
 
