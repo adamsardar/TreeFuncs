@@ -1,4 +1,4 @@
-#! /usr/bin/perl -w
+#!/usr/bin/env perl
 
 =head1 NAME
 
@@ -6,9 +6,19 @@ prepareTraitTreeOverlay<.pl>
 
 =head1 USAGE
 
- prepareTraitTreeOverlay.pl (-si --supraid |-da --domarch) Input the domain architecture to study, with by DA string or as a comb_id [*-ss --supresssupra 0|1] supress supra domain colouring -t --tree tree file
+ prepareTraitTreeOverlay.pl (-si --supraid |-da --domarch) Input the domain architecture to study, with by DA string or as a comb_id [*-ss --supresssupra] supress supra domain colouring -t --tree tree_file.nwk
 
-EXAMPLE: prepareTraitTreeOverlay.pl -t ./EukaryoteTreeDomaarc.tree -si 34 -ss 1 
+EXAMPLE: prepareTraitTreeOverlay.pl -t ./EukaryoteTreeDomaarc.tree -si 34 -ss
+#This will find all genomes possesing supra id 34 and them prepare a css template for use with nw_utils.
+
+You can then plot this as an svg tree using the command:
+
+nw_display -sr -S -w 3000 -c treedisplayoptions.css ./tree_file.nwk > tree.svg
+
+You may need to play around with -w to get a width that looks 'good'
+
+Domain architectures are shown in red (with infered evoltionary history up to their most recent common ancestor). Supra domains are in blue (and, since they are not modular evolutionary units, there is no attempt at ancestral lineage being show).
+Genomes that exists as an outgroup to those possesing the da are shown in grey. Genomes beneath the LCA but not in possesion of the DA or a supra domain are in black.
 
 =head1 SYNOPSIS
 
@@ -72,7 +82,7 @@ GetOptions("verbose|v!"  => \$verbose,
            "tree|t=s" => \$TreeFile,
            "domarch|da=s" => \$DomArch,
            "supraid|si=s" => \$SupraID,
-           "supresssupra|ss=i" => \$SupressSupra,
+           "supresssupra|ss!" => \$SupressSupra,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
 #Print out some help if it was asked for or if no arguments were given.
