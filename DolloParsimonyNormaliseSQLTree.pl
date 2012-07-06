@@ -41,12 +41,10 @@ B<Data::Dumper> Used for debug output.
 use Getopt::Long;                     #Deal with command line options
 use Pod::Usage;                       #Print a usage man page from the POD comments after __END__
 use Data::Dumper;                     #Allow easy print dumps of datastructures for debugging
-use DBI;
 
 use Supfam::Utils;
 use Supfam::TreeFuncsNonBP;
-use Supfam::DolloParsmony;
-use Supfam::RAxML_Ancestral_States_Parser;
+use Supfam::SQLFunc;
 
 # Command Line Options
 #----------------------------------------------------------------------------------------------------------------
@@ -54,23 +52,26 @@ use Supfam::RAxML_Ancestral_States_Parser;
 my $verbose; #Flag for verbose output from command line opts
 my $debug;   #As above for debug
 my $help;    #Same again but this time should we output the POD man page defined after __END__
-my $TreeFile;
-my $LeafSpeciesStatesFile;
+
+my $rootleft;  #Root node from the tree (left id in SQL table) to be used.
+my $rootright; #Root node from the tree (right id in SQL table) to be used.
+
 my $TreeByCreations;
 my $TreeByDeletions;
 my $TreeByDeletionsAndCreations;
-my $nthread = 10;
+
+my $ExcludeGenomeFile = 0;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
            "debug|d!"  => \$debug,
            "help|h!" => \$help,
-           "speciestraits|st=s" => \$LeafSpeciesStatesFile, #trait file used to build RAxMl tree
-           "tree|t=s" => \$TreeFile,
             "treebydeletions|tbc:i" => \$TreeByCreations,
            "treebycreations|tbd:i" => \$TreeByDeletions,
            "treebydelsandcreats|tbcd:i" => \$TreeByDeletionsAndCreations,
-           "nthreads|TD:i" => \$nthread,
+           "rootleft|rl:s" => \$rootleft,
+            "rootright|rr:s" => \$rootright,
+            "exludegenomes|eg:s" => \$ExcludeGenomeFile,   
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
 #Print out some help if it was asked for or if no arguments were given.
@@ -80,75 +81,73 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
 
+my $dbh = dbConnect();
+my $sth;
 
-open FH, "<$TreeFile" or die $?;
-
-my $NewickStringOfTree = <FH>;
-
-close FH;
-
-my ($root,$TreeCacheHash) = BuildTreeCacheHash($NewickStringOfTree);
-print STDERR "Built TreeCacheHash\n";
-
-DolloParsimonyAncestralState($TreeCacheHash,$root,$LeafSpeciesStatesFile,$nthread); #Using 10 threads
-print STDERR "Parsed DOLLOP Ancestral States\n";
-
-my $NumberOfTraits = scalar(keys(%{$TreeCacheHash->{$root}{'DolloP_Trait_String_Poistions_Lookup'}}));
-
-DOLLOP_Ancestral_Trait_Changes_in_Clade($TreeCacheHash,$root,$root);
-
-print STDERR $TreeCacheHash->{$root}{'DOLLOP_Total_Number_Created'}." = Total DOLLOP Created below root\n";
-print STDERR $TreeCacheHash->{$root}{'DOLLOP_Total_Number_Deleted'}." = Total DOLLOP Deleted below root\n";
-
-
-
-foreach my $TreeNode (keys(%{$TreeCacheHash})){
+if(defined($rootleft) && ! defined($rootright)){
 	
-	if($TreeByDeletions){
+	$sth = $dbh->prepare("SELECT tree.right_id FROM tree WHERE tree.left_id = ?;");
+	$sth->execute($rootleft);
+	$rootright = $sth->fetchrow_array();
 	
-		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'}/$NumberOfTraits;
+}elsif(defined($rootright) && ! defined($rootleft)){
 	
-	}elsif($TreeByCreations){
-		
-		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'}/$NumberOfTraits;
+	$sth = $dbh->prepare("SELECT tree.left_id FROM tree WHERE tree.right_id = ?;");
+	$sth->execute($rootright);
+	$rootleft = $sth->fetchrow_array();
 	
-	}elsif($TreeByDeletionsAndCreations){
-		
-		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'}+$TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'}/$NumberOfTraits;
-		
-	}else{
-		
-		die "Need to choose a method by which to normalise tree"
-	}
+}else{
+	
+	die 'Need to provide either the left_id or right_id of root node, preferably both! ';	
 }
 
-my $Tree = ExtractNewickSubtree($TreeCacheHash,$root,1,0);
+$sth->finish;
+dbDisconnect($dbh);
 
-print $Tree."\n";
 
-foreach my $TreeNode (keys(%{$TreeCacheHash})){
+my $ExcludedGenomes = [];
+
+
+if($ExcludeGenomeFile){
 	
-	if($TreeByDeletions){
+	die "Feature not supported at current!\n";
 	
-		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'};
+	open EXCGENOMES, "$ExcludeGenomeFile" or die $!;
 	
-	}elsif($TreeByCreations){
+	foreach my $line (<EXCGENOMES>){
 		
-		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'};
-	
+		chomp($line);
+		next if ($line =~ m/^#/); #Weed out comment lines
 		
-	}elsif($TreeByDeletionsAndCreations){
-		
-		$TreeCacheHash->{$TreeNode}{'branch_length'} = $TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Created'}+$TreeCacheHash->{$TreeNode}{'DOLLOP_Number_Deleted'};
-		
-	}else{
-		
-		die "Need to choose a method by which to normalise tree"
+		if($line =~ m/\t/){push(@$ExcludedGenomes,split("\t",$line));}else{push(@$ExcludedGenomes,$line);} 
+		#Input file can be any mixture of newlines and tab seperated entries, which this line catches and pushes onto @$SelectedGroupNodes
 	}
+	
+	close EXCGENOMES;
 }
 
-$Tree = ExtractNewickSubtree($TreeCacheHash,$root,1,0);
 
-print $Tree."\n";
+
+
+my $SQLTreeCacheHash = supfamSQL2TreeHash($rootleft,$rootright);
+
+my $root = $rootleft;
+
+my $SupfamNewickTree = ExtractNewickSubtree($SQLTreeCacheHash,$root,1,0);
+
+open RAWTREE, "> RawSupfamTree.nwk" or die $!;
+print RAWTREE $SupfamNewickTree."\n";
+close RAWTREE;
+
+
+normailseSQLTreeHashBranchForDeletions($SQLTreeCacheHash);
+
+my $DolloTree = ExtractNewickSubtree($SQLTreeCacheHash,$root,1,0);
+
+open RAWTREE, "> DolloDeletionsNormalisedTree.nwk" or die $!;
+print RAWTREE $DolloTree."\n";
+close RAWTREE;
+
+
 
 __END__
