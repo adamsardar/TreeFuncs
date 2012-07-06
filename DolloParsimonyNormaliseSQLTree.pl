@@ -6,11 +6,12 @@ DolloParsimonyNormaliseTreeI<.pl>
 
 =head1 USAGE
 
- DolloParsimonyNormaliseTree.pl [options -v,-d,-h] -t "TreeFile" -st "SpeciesTraitFile" -tbc|-tbd|-tbcd 1 "Tree by creations, deletions or both" -TD --nthreads #Threads
+ DolloParsimonyNormaliseTree.pl [options -v,-d,-h] (-rl root left | -rr root right)
 
 =head1 SYNOPSIS
 
-Taking a tree and phylip trait alignment file as inputs, this tree allows you to normalise branch lengths so as to be proportional to dollow parsimony i.)Deletions ii.)Creations or ii.) both.
+Extracts the SUEPRFAMILY tree beneath a certain root (defined by left_id or right_id) and then dumps out two trees - the first is simply the SUPERFAMILY tree and the second is that same tree with branch lengths equal to the number of domain architectures that have been lost.
+
 =head1 AUTHOR
 
 B<Adam Sardar> - I<adam.sardar@bristol.ac.uk>
