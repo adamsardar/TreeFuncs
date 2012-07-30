@@ -8,6 +8,9 @@ supfam2TraitMatrix<.pl>
 
   supfam2TraitMatrix.pl [options -v,-d,-h] -t --tree <TreeFile in Newick> -o --output <outputfile name> -s --style <output style phylip|Hennig86|RAxML> (-T -- traitstyle supra|comb|multi  | -g --genomelist new line seperated lsit of genomes/subgenomes to produce traits for )
 
+	example:
+	supfam2TraitMatrix.pl --tree Eukarote.tree -S RAxML -T comb -o output.file
+
 =head1 SYNOPSIS
 
 A script to generate a carachter trait matrix file of domain architecture combinations copatible with Phylip|RAxML|Hennig86 format from a specified tree file 
@@ -23,9 +26,6 @@ B<Adam Sardar> - I<adam.sardar@bristol.ac.uk>
 
 Copyright 2011 Gough Group, University of Bristol.
 
-=head1 EDIT HISTORY
-
-02-August-2011 Initial Entry
 
 =cut
 
@@ -269,12 +269,20 @@ sub generateDomArchTraits($$){
 	#Calculate the informative sites and exclude the others
 	my $index=0;
 	my @InformativeSites;
+	my $comb_ids_used = [];
 	
 	foreach my $comb_id (sort(@comb_ids)){
 		
-		push (@InformativeSites,$index) if($CombHash{$comb_id} != $FullGenomeTreeTaxa && $CombHash{$comb_id} != 0);
+		if($CombHash{$comb_id} != $FullGenomeTreeTaxa && $CombHash{$comb_id} != 0){
+			#So, providing that the comb_id of interest does not exist in all or none of the genomes in the selection
+			
+			push (@InformativeSites,$index);
+			push (@$comb_ids_used,$comb_id);
+		}
 		$index++;
 	}
+	
+	
 	
 	#Selecting only the informative sites, create the trait strings which shall be outputted to file
 	foreach my $taxa (@FullGenomes,@SubGenomes){
@@ -284,7 +292,7 @@ sub generateDomArchTraits($$){
 		$TraitHash->{$taxa}=$TraitString;
 	}
 	
-	return($TraitHash);
+	return($TraitHash,$comb_ids_used);
 }
 
 sub generateSupraTraits($$){
@@ -399,9 +407,16 @@ sub generateSupraTraits($$){
 	my $index=0;
 	my @InformativeSites;
 	
+	my $comb_ids_used = [];
+	
 	foreach my $comb_id (sort(@comb_ids)){
 		
-		push (@InformativeSites,$index) if($CombHash{$comb_id} != $FullGenomeTreeTaxa && $CombHash{$comb_id} != 0);
+		if($CombHash{$comb_id} != $FullGenomeTreeTaxa && $CombHash{$comb_id} != 0){
+			#So, providing that the comb_id of interest does not exist in all or none of the genomes in the selection
+			
+			push (@InformativeSites,$index);
+			push (@$comb_ids_used,$comb_id);
+		}
 		$index++;
 	}
 	
@@ -413,8 +428,7 @@ sub generateSupraTraits($$){
 		$TraitHash->{$taxa}=$TraitString;
 	}
 	
-	return($TraitHash);
-		
+	return($TraitHash,$comb_ids_used);
 }
 
 sub generateMultistateTraits($){
@@ -489,10 +503,16 @@ sub generateMultistateTraits($){
 	my $index=0;
 	my @InformativeSites;
 	
+	my $supra_ids_used = [];
+	
 	foreach my $supra_id (sort(@supra_ids)){
 		{
 	#		no warnings 'uninitialized'; #Stop perl complaining about unitialized hash entries
-			push (@InformativeSites,$index) if(($CombHash{$supra_id} != $NoTreeTaxa) && ($SupraHash{$supra_id} != $NoTreeTaxa)  && ($CombHash{$supra_id} != 0));
+			if(($CombHash{$supra_id} != $NoTreeTaxa) && ($SupraHash{$supra_id} != $NoTreeTaxa)  && ($CombHash{$supra_id} != 0)){
+		
+				push (@InformativeSites,$index);
+				push (@$supra_ids_used,$supra_id);
+			}
 			#i.e all or none of the taxa possess a comb or a supradomain, then exclude it from the trait hash
 		}
 		$index++;
@@ -506,7 +526,7 @@ sub generateMultistateTraits($){
 		$TraitHash->{$taxa}=$TraitString; #Join into string, so as to save on memory overhead
 	}
 		
-	return($TraitHash);
+	return($TraitHash,$supra_ids_used);
 		
 }
 
@@ -519,7 +539,7 @@ sub generateMultistateTraits($){
 GetOptions("verbose|v!"  => \$verbose,
            "debug|d!"  => \$debug,
            "help|h!" => \$help,
-           "tree|tr=s" => \$TreeFile,
+           "tree|t=s" => \$TreeFile,
            "genomelist|g=s" => \$GenomeListFile,
            "output|o=s" => \$outputfile,
            "style|s:s" => \$OutputStyle,
@@ -622,7 +642,7 @@ foreach my $Taxa (@TreeTaxa){
 	$sth->finish;	
 }
 
-dbDisconnect($dbh) ; 
+
 
 my @SupfamGenome = (@FullGenomes,@SubGenomes);
 
@@ -642,22 +662,23 @@ unless(scalar(@SupfamGenome)){
 #Generate the appropriate set of traits for normal genomes
 
 my $TraitHash;
+my $comb_ids_used;
 
 if($TraitStyle =~ m/comb/i){
 	
-	$TraitHash = generateDomArchTraits(\@FullGenomes,\@SubGenomes);
+	($TraitHash,$comb_ids_used) = generateDomArchTraits(\@FullGenomes,\@SubGenomes);
 	
 }elsif($TraitStyle =~ m/supra/i){
 	
-	$TraitHash = generateSupraTraits(\@FullGenomes,\@SubGenomes);
+	($TraitHash,$comb_ids_used) = generateSupraTraits(\@FullGenomes,\@SubGenomes);
 	
 }elsif($TraitStyle =~ m/multi/i){
 	
-	$TraitHash = generateMultistateTraits(\@FullGenomes);
+	($TraitHash,$comb_ids_used) = generateMultistateTraits(\@FullGenomes);
 	
 }else{
 	
-	$TraitHash = generateDomArchTraits(\@FullGenomes,\@SubGenomes);
+	($TraitHash,$comb_ids_used) = generateDomArchTraits(\@FullGenomes,\@SubGenomes);
 	print STDERR "No Appropriate Output chosen, generating domain architecture traits instead \n";
 }
 
@@ -681,6 +702,30 @@ if($OutputStyle =~ m/Hennig86/i){
 	RAxMLOutput($TraitHash,$outputfile);
 	print STDERR 'No Appropriate Output chosen, outputted RAxML format instead'."\n";
 }
+
+
+
+
+open COMBINDEX, ">TraitsCombIndex.dat" or die $!;
+
+my $index = 0;
+
+$sth = $dbh->prepare_cached("SELECT comb FROM comb_index WHERE id = ?;");
+
+foreach my $combidused (@$comb_ids_used){
+	
+	$sth->execute($combidused);
+	
+	my ($comb_string) = $sth->fetchrow_array;	
+	print COMBINDEX $combidused."\t".$comb_string."\n";
+}
+
+$sth->finish;
+
+close COMBINDEX;
+
+
+dbDisconnect($dbh) ; 
 
 __END__
 
