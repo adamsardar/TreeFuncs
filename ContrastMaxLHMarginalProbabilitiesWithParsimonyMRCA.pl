@@ -11,7 +11,7 @@ ContrastMaxLHMarginalStatesWithParsimonyMRCA.pl [options -v,-d,-h] <ARGS>
 
 example:
 
-ContrastMaxLHMarginalProbabilitiesWithParsimonyMRCA.pl -f ./RAxML_marginalAncestralStates.BacteriaAncestral -st ./BacteriaTraits -o Contrasted -t ./BacteraSupraDomainTree14Nov2011.tree -pt ./outfile
+ContrastMaxLHMarginalProbabilitiesWithParsimonyMRCA.pl -f ./RAxML_marginalAncestralProbabilities.BacteriaAncestral -st ./BacteriaTraits -o Contrasted -t ./BacteraSupraDomainTree14Nov2011.tree -pt ./outfile
 
 
 =head1 SYNOPSIS
