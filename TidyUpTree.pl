@@ -1,16 +1,16 @@
-#! /usr/bin/perl -w
+#! /usr/bin/env perl
 
 =head1 NAME
 
-I<.pl>
+TidyUpTreeI<.pl>
 
 =head1 USAGE
 
- .pl [options -v,-d,-h] <ARGS>
-
+ TidyUpTree.pl [options -v,-d,-h] -t --tree TreeFile -b --branches -i --internal
+ 
 =head1 SYNOPSIS
 
-A script to take a list of genomes (strains or whatever) and output some summary data regarding the domain architectures in common.
+A simple clean up script for a newick tree. I wrote this because I was sick of RAxML pumping out errors for odly formatted trees.
 
 =head1 AUTHOR
 
@@ -24,9 +24,7 @@ Copyright 2011 Gough Group, University of Bristol.
 
 # Strict Pragmas
 #----------------------------------------------------------------------------------------------------------------
-use strict;
-use warnings;
-#use diagnostics;
+use Modern::Perl;
 
 # Add Local Library to LibPath
 #----------------------------------------------------------------------------------------------------------------
@@ -43,10 +41,8 @@ B<Data::Dumper> Used for debug output.
 use Getopt::Long;                     #Deal with command line options
 use Pod::Usage;                       #Print a usage man page from the POD comments after __END__
 use Data::Dumper;                     #Allow easy print dumps of datastructures for debugging
-#use XML::Simple qw(:strict);          #Load a config file from the local directory
-use DBI;
+use Carp;
 use Supfam::Utils;
-
 use Supfam::TreeFuncsNonBP;
 
 # Command Line Options
@@ -56,7 +52,7 @@ my $verbose; #Flag for verbose output from command line opts
 my $debug;   #As above for debug
 my $help;    #Same again but this time should we output the POD man page defined after __END__
 my $tree;
-my $branchesflag = 1;
+my $branchesflag = 0;
 my $internalnodeflag = 0;
 
 #Set command line flags and parameters.
@@ -64,32 +60,17 @@ GetOptions("verbose|v!"  => \$verbose,
            "debug|d!"  => \$debug,
            "help|h!" => \$help,
            "tree|t=s" => \$tree,
-           "internal|i:i" => \$internalnodeflag,
-           "branches|b:i" => \$branchesflag,
+           "internal|i!" => \$internalnodeflag,
+           "branches|b!" => \$branchesflag,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
 #Print out some help if it was asked for or if no arguments were given.
 pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
-# Sub definitions
-#----------------------------------------------------------------------------------------------------------------
-=head1 DESCRIPTION
-
-Detailed info about the script goes here
-
-=head2 Methods
-=over 4
-=cut
-
-=item * func
-Function to do something
-=cut
-sub func {
-	return 1;
-}
-
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
+
+croak "You need to specify a treefile!\n" unless($tree);
 
 open FH, "<$tree" or die $?;
 
@@ -100,11 +81,7 @@ close FH;
 my ($root,$TreeCacheHash) = BuildTreeCacheHash($NewickStringOfTree);
 print STDERR "Built TreeCacheHash\n";
 
-EasyDump('Dump.dat',$TreeCacheHash);
-
 sanitise_TreeHash($TreeCacheHash,$root);
-
-EasyDump('SanDump.dat',$TreeCacheHash);
 
 my $Output = ExtractNewickSubtree($TreeCacheHash,$root,$branchesflag,$internalnodeflag);
 
