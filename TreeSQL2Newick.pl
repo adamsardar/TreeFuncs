@@ -27,8 +27,7 @@ Copyright 2011 Gough Group, University of Bristol.
 
 # Strict Pragmas
 #----------------------------------------------------------------------------------------------------------------
-use strict;
-use warnings;
+use Modern::Perl;
 
 # Add Local Library to LibPath
 #----------------------------------------------------------------------------------------------------------------
@@ -43,7 +42,8 @@ B<Data::Dumper> Used for debug output.
 =cut
 use Getopt::Long;                     #Deal with command line options
 use Pod::Usage;                       #Print a usage man page from the POD comments after __END__
-use Supfam::TreeFuncs;
+use Supfam::TreeFuncsNonBP;
+use Supfam::SQLFunc;
 
 # Command Line Options
 #----------------------------------------------------------------------------------------------------------------
@@ -53,13 +53,6 @@ my $debug;   #As above for debug
 my $help;    #Same again but this time should we output the POD man page defined after __END__
 my $rootleft;  #Root node from the tree (left id in SQL table) to be used.
 my $rootright; #Root node from the tree (right id in SQL table) to be used.
-my $deletiontreeflag; #Produce a tree with branch lengths equal to the number of domain architecture deltions along that edge
-my @excluded; # A list of genomes not wanted in this tree - not yet implemented
-my $OutputFile = 'fileout.dat';
-my $ExcludeGenomeFile = 0;
-
-my $ExcludeLifeDomain;
-my @CLIExlucdeGenomes;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -67,58 +60,41 @@ GetOptions("verbose|v!"  => \$verbose,
            "help|h!" => \$help,
            "rootleft|rl:s" => \$rootleft,
            "rootright|rr:s" => \$rootright,
-           "exclude|ex:s" => \@excluded,
-           "output|o:s" => \$OutputFile,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
         
 # Main Script Content
 #----------------------------------------------------------------------------------------------------------------
 
+# Main Script Content
+#----------------------------------------------------------------------------------------------------------------
 
-#Populate $ExcludedGenomes with genomes not wanted in the resulting tree;
+my $dbh = dbConnect();
+my $sth;
 
-my $ExcludedGenomes = [];
-
-if($ExcludeLifeDomain){
-		
-	my $dbh = dbConnect();
-	my $sth;
-
-	$sth = $dbh->prepare("SELECT genome FROM genome WHERE include = 'y' AND domain = ?;");
-	$sth->execute($ExcludeLifeDomain);
+if(defined($rootleft) && ! defined($rootright)){
 	
-	while (my $genome = $sth->fetchrow_array() ) { push(@$ExcludedGenomes,$genome);} #Populate @$ExcludedGenomes with genomes from the chosen superfamily life domain
-	dbDisconnect($dbh);
-
+	$sth = $dbh->prepare("SELECT tree.right_id FROM tree WHERE tree.left_id = ?;");
+	$sth->execute($rootleft);
+	$rootright = $sth->fetchrow_array();
+	
+}elsif(defined($rootright) && ! defined($rootleft)){
+	
+	$sth = $dbh->prepare("SELECT tree.left_id FROM tree WHERE tree.right_id = ?;");
+	$sth->execute($rootright);
+	$rootleft = $sth->fetchrow_array();
+	
+}else{
+	
+	die 'Need to provide either the left_id or right_id of root node, preferably both! ';	
 }
 
-push(@$ExcludedGenomes,@CLIExlucdeGenomes) if(scalar(@CLIExlucdeGenomes));
+print STDERR $rootleft." Root Left ".$rootright." Root Right\n";
 
-if($ExcludeGenomeFile){
-	
-	open EXCGENOMES, "$ExcludeGenomeFile" or die $!;
-	
-	foreach my $line (<EXCGENOMES>){
-		
-		chomp($line);
-		next if ($line =~ m/^#/); #Weed out comment lines
-		
-		if($line =~ m/\t/){push(@$ExcludedGenomes,split("\t",$line));}else{push(@$ExcludedGenomes,$line);} 
-		#Input file can be any mixture of newlines and tab seperated entries, which this line catches and pushes onto @$SelectedGroupNodes
-	}
-	
-	close EXCGENOMES;
-}
+my $SQLTreeCacheHash = supfamSQL2TreeHash($rootleft,$rootright);
 
-##Yet to actually be implemented in the SQL2Newick: allow for certiain genomes to be excluded!
+my $FullDeletionsNormailsedTree = ExtractNewickSubtree($SQLTreeCacheHash,$rootleft,1,0);
 
-my ($RightTreeHash,$LeftTreeHash) = SQL2Newick($rootleft,$rootright);
-
-open OUTPUT, "> SupfamTree" or die $!;
-my $FullTree = $LeftTreeHash->{$rootleft}[1][2];
-
-print OUTPUT $FullTree."\n";
-close OUTPUT;
+print $FullDeletionsNormailsedTree."\n";
 
 __END__
 
