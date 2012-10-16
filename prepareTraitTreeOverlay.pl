@@ -62,6 +62,7 @@ use Supfam::Utils;
 use Supfam::SQLFunc;
 use Supfam::TreeFuncsNonBP;
 use Supfam::DolloParsmony;
+use Carp;
 
 # Command Line Options
 #----------------------------------------------------------------------------------------------------------------
@@ -104,7 +105,7 @@ my $Leaf2NodeIDDictionary = {};
 
 map{$Leaf2NodeIDDictionary->{$TreeCacheHash->{$_}{'node_id'}}=$_}@TreeLeaves;
 
-open CSS, ">treedisplayoptions.css" or die $!.$?;
+open CSS, ">treedisplayoptions.css" or croak $!.$?;
 
 my $FullTreeString = join(' ',map{$TreeCacheHash->{$_}{'node_id'}}@TreeLeaves);
 print CSS '"stroke:grey" Clade '.$FullTreeString."\n";
