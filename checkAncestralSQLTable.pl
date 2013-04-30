@@ -8,6 +8,10 @@ checkAncestralSQLTable<.pl>
 
 checkAncestralSQLTable.pl [options -v,-d,-h] <ARGS>
 
+e.g.
+
+./checkAncestralSQLTable.pl -rl 3
+
 =head1 SYNOPSIS
 
 A simple script to check from errors in assignment of dollo parsimony ancestral states in SQL ancestral_len_supra
@@ -108,7 +112,7 @@ $sth = $dbh->prepare("SELECT len_supra.supra_id, MIN(tree.left_id)
 					JOIN tree
 					ON genome.taxon_id = tree.taxon_id
 					WHERE len_supra.ascomb_prot_number > 0
-					AND (genome.include = 'y' OR genome.include = 's') 
+					AND (genome.include = 'y') 
 					GROUP BY len_supra.supra_id;");
 					
 $sth->execute();
@@ -127,7 +131,7 @@ $sth = $dbh->prepare("SELECT len_supra.supra_id, MAX(tree.right_id)
 					JOIN tree
 					ON genome.taxon_id = tree.taxon_id
 					WHERE len_supra.ascomb_prot_number > 0
-					AND (genome.include = 'y' OR genome.include = 's') 
+					AND (genome.include = 'y') 
 					GROUP BY len_supra.supra_id;");
 
 $sth->execute();
@@ -173,11 +177,18 @@ foreach my $DomArch (keys(%$DomArch2leftRightIDs)){
 	}	#If the dom arch has a MRCA earlier than the desired root of study
 	
 	$DomArchMRCA->{$DomArch}=[$MRCAleft_id,$MRCAright_id];
-	print STDERR "$DomArch not assigned correctly - min left_id: $minleft and max right: $maxright MRCA left_id: $MRCAleft_id MRCA status\n" if($SupraStatus ~~ undef);
 	
-	print CREATED "Domain Architecture with supra_id: $DomArch not assigned correctly - min left_id: $minleft and max right: $maxright MRCA left_id: $MRCAleft_id MRCA status: $SupraStatus (should be created!) \n" unless ($SupraStatus =~ m/created/i);	
-
-	#last if ($count++ > 100);
+	print $DomArch."\n" if($MRCAleft_id ~~ undef);
+	
+	if($SupraStatus ~~ undef){
+		
+		print CREATED "Domain Architecture with supra_id: $DomArch not assigned correctly - min left_id: $minleft and max right: $maxright MRCA left_id: $MRCAleft_id MRCA status: undefined (should be created!) \n";	
+	
+	}elsif($SupraStatus !~ m/created/i){
+		
+		print CREATED "Domain Architecture with supra_id: $DomArch not assigned correctly - min left_id: $minleft and max right: $maxright MRCA left_id: $MRCAleft_id MRCA status: $SupraStatus (should be created!) \n" unless ($SupraStatus =~ m/created/i);	
+	}
+	
 }
 
 close CREATED;

@@ -1,4 +1,4 @@
-#! /usr/bin/env perl
+#!/usr/bin/env perl
 
 =head1 NAME
 
@@ -11,6 +11,8 @@ TestOutTree<.pl>
 =head1 SYNOPSIS
 
 A simple script to aid in development of the Supfam::TreeFuncsNonBP module
+
+Reads in a file of newick style trees, assigns left and right ids to it and then prints it to STDOUT.
 
 =head1 AUTHOR
 
@@ -73,17 +75,24 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $help;
 
 open TREE, "<$file" or die;
 
-my $TreeString = <TREE>;
+while (my $TreeString = <TREE>){
 
-my ($root,$TreeHash) = BuildTreeCacheHash($TreeString);
+  my ($root,$TreeHash) = BuildTreeCacheHash($TreeString);
+  
+  
+  print STDERR "Processing tree $.\n";
+
+  if($debug){
+      assignLeftRightIDs2TreeHash($TreeHash,$root);  
+      EasyDump("$TreeString"."$.".".TreeHashDat",$TreeHash);
+    }
+  
+  my $TextTree = ExtractNewickSubtree($TreeHash,$root,0,0);
+
+  print STDOUT $TextTree."\n";
+}
 
 close TREE;
-
-assignLeftRightIDs2TreeHash($TreeHash,$root);
-
-EasyDump('Dump.oyt',$TreeHash);
-
-
 
 #Convert to newick string and print to screen
 

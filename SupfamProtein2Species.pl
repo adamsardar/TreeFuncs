@@ -102,7 +102,8 @@ if($DomainFlag){
 	die "You need to specify which mode you wish the script to run in";
 }
 
-
+my $dictionary = {};
+#going to dump out a tab space mapping fiel, so that you can play with changing the input alignmenet using dictionary convert script
 
 
 while (my $TreeString = <TREE>){
@@ -140,12 +141,14 @@ while (my $TreeString = <TREE>){
 			$ProteinDetail =~ s/ /_/g
 		}
 		
+		
+		
 		push(@ProteinIDInfo,$ProteinDetail);
 	
 		my $String2ReplaceNodeName = join('-',@ProteinIDInfo);
 	
 		$TreeHash->{$TreeLeafID}{'node_id'}=$String2ReplaceNodeName;
-	
+		$dictionary->{$nodename} = $String2ReplaceNodeName;
 	
 		$numberofnodeschanged++;
 		
@@ -166,8 +169,18 @@ while (my $TreeString = <TREE>){
 
 print STDERR "Number of trees changed = ".$numberoftreeschanged."\n" if($verbose);
 	
-
 close TREE;
+
+open FH,">ProteinID2ChangedValue.txt" or die $!."\t".$?;
+
+
+while (my($key,$value)=each(%$dictionary)){
+	
+	print FH $key."\t".$value."\n";
+}
+
+close FH;
+
 
 dbDisconnect($dbh) ; 
 
