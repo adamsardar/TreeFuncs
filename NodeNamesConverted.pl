@@ -1,4 +1,4 @@
-#!/usr/bin/env perl -w
+#!/usr/bin/env perl
 
 =head1 NAME
 NodeNamesConvretedI<.pl>
@@ -50,6 +50,7 @@ my $delim = "\t";
 my $dictionary_file;
 my $file_to_translate;
 my $invert;
+my $branches_flag = 0;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -58,6 +59,7 @@ GetOptions("verbose|v!"  => \$verbose,
            "delimiter|delim:s" => \$delim,
            "dict|t=s" => \$dictionary_file,
            "file|f=s" => \$file_to_translate,
+           "branches|b!" => \$branches_flag,
            "invert|i!" => \$invert,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
@@ -132,9 +134,9 @@ while (my $line = <FILE>){
 				print LOG "Changed ".$CurrentNodeName." to ".$TreeHash->{$Leaf}{'node_id'}."\n";
 		}
 	}
-	print $LeavesChanged." leaves chnaged out of a possible ".scalar(@TreeLeaves)."\n";
+	print STDERR $LeavesChanged." leaves chnaged out of a possible ".scalar(@TreeLeaves)."\n";
 
- 	my $TextTree = ExtractNewickSubtree($TreeHash,$root,0,0);
+ 	my $TextTree = ExtractNewickSubtree($TreeHash,$root,$branches_flag,0);
 	print STDOUT $TextTree."\n";
 }
 

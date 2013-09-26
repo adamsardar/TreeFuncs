@@ -11,6 +11,8 @@ prepareTraitTreeOverlay<.pl>
 EXAMPLE: prepareTraitTreeOverlay.pl -t ./EukaryoteTreeDomaarc.tree -si 34 -ss
 #This will find all genomes possesing supra id 34 and them prepare a css template for use with nw_utils.
 
+You can also pass a newline seperated list of genomes to colour.
+
 You can then plot this as an svg tree using the command:
 
 nw_display -sr -S -w 3000 -c treedisplayoptions.css ./tree_file.nwk > tree.svg
@@ -75,6 +77,8 @@ my $TreeFile;
 my $SupraID;
 my $DomArch;
 my $SupressSupra; #Flag for whter to show supra domain assignmenets or not ...
+my $GenomesFile;
+my $SuprasFile;
 
 #Set command line flags and parameters.
 GetOptions("verbose|v!"  => \$verbose,
@@ -84,6 +88,8 @@ GetOptions("verbose|v!"  => \$verbose,
            "domarch|da=s" => \$DomArch,
            "supraid|si=s" => \$SupraID,
            "supresssupra|ss!" => \$SupressSupra,
+           "GenomeFile|gf=s" => \$GenomesFile,
+           "SuprasFile|sf=s" => \$SuprasFile,
         ) or die "Fatal Error: Problem parsing command-line ".$!;
 
 #Print out some help if it was asked for or if no arguments were given.
@@ -115,6 +121,8 @@ my $dbh = dbConnect();
 
 my $sth;
 
+my @TraitGenomes; #A list of genomes possesing the trait to colour
+
 
 #Create a list of all genomes in which trait is present as a full on domain architecture
 
@@ -122,20 +130,39 @@ if($SupraID){
 
 	$sth = $dbh->prepare("SELECT distinct(genome) FROM len_supra WHERE ascomb_prot_number > 0 AND supra_id = ?;");
 	$sth->execute($SupraID);
-
+	
+	while(my $genome = $sth->fetchrow_array()){push(@TraitGenomes,$genome);}
+	
 }elsif($DomArch){
 		
 	$sth = $dbh->prepare("SELECT distinct(genome) FROM len_supra JOIN comb_index ON len_supra.supra_id = comb_index.id WHERE  len_supra.ascomb_prot_number > 0 AND comb_index.comb = ?;");
 	$sth->execute($DomArch);
 	
+	while(my $genome = $sth->fetchrow_array()){push(@TraitGenomes,$genome);}
+	
+}elsif($GenomesFile){
+	
+	open GENOMES, "<$GenomesFile" or die $!."\t".$?;
+	#$GenomesFile is a file of one genome in the tree per line, newline seperated
+	
+	while(my $line = <GENOMES>){
+		
+		chomp($line);
+		push(@TraitGenomes,$line);
+	}
+	
+	close GENOMES;
+	
+
 }else{
 	
-	die "You must choose to colour tree either by domain architecture or supra_id!\n";
+	die "You must choose to colour tree either by domain architecture or supra_id or supply a file of genomes to colour!\n";
 }
 
 
-my @TraitGenomes; #A list of genomes possesing the trait to colour
-while(my $genome = $sth->fetchrow_array()){push(@TraitGenomes,$genome);}
+
+
+my @SupraGenomes; #A list of genomes possesing the domain architecture as just a supra domain
 
 my (undef,$Intersection,undef,undef) = IntUnDiff(\@TraitGenomes,[map{$TreeCacheHash->{$_}{'node_id'}}@TreeLeaves]);		
 @TraitGenomes = @$Intersection;
@@ -147,20 +174,38 @@ if($SupraID){
 
 	$sth = $dbh->prepare("SELECT distinct(genome) FROM len_supra WHERE ascomb_prot_number = 0 AND number > 0 AND supra_id = ?;");
 	$sth->execute($SupraID);
+	while(my $genome = $sth->fetchrow_array()){push(@SupraGenomes,$genome);}
 
 }elsif($DomArch){
 		
 	$sth = $dbh->prepare("SELECT distinct(genome) FROM len_supra JOIN comb_index ON len_supra.supra_id = comb_index.id WHERE  len_supra.ascomb_prot_number = 0 AND number > 0 AND comb_index.comb = ?;");
 	$sth->execute($DomArch);
+	while(my $genome = $sth->fetchrow_array()){push(@SupraGenomes,$genome);}
+		
+}elsif($SuprasFile || $SupressSupra){
 	
+	unless($SupressSupra){;
+		
+	open SUPRAS, "<$SuprasFile" or die $!."\t".$?;
+		#$GenomesFile is a file of one genome in the tree per line, newline seperated
+	
+		while(my $line = <SUPRAS>){
+		
+			chomp($line);
+			push(@SupraGenomes,$line);
+		}
+	
+		close SUPRAS;
+	}
+		
 }else{
 	
 	die "You must choose to colour tree either by domain architecture or supra_id!\n";
 }
 
 
-my @SupraGenomes; #A list of genomes possesing the domain architecture as just a supra domain
-while(my $genome = $sth->fetchrow_array()){push(@SupraGenomes,$genome);}
+
+
 
 (undef,$Intersection,undef,undef) = IntUnDiff(\@SupraGenomes,[map{$TreeCacheHash->{$_}{'node_id'}}@TreeLeaves]);
 my (undef,undef,undef,$GenomesWithOnlySupra) = IntUnDiff(\@TraitGenomes,$Intersection); #Find the genomes unique to the SupraGenomes list		
